@@ -51,29 +51,31 @@ enum GoalType: String, Codable, CaseIterable {
     }
 
     var defaultValue: Double {
+        let isUSD = NC.currencySymbol == "$"
         switch self {
-        case .spending: return 30000
+        case .spending: return isUSD ? 3000 : 30000
         case .steps: return 8000
         case .sleep: return 7.5
         case .workout: return 4
         case .calories: return 400
         case .homeCooking: return 5
         case .eatingOut: return 3
-        case .savings: return 10000
+        case .savings: return isUSD ? 1000 : 10000
         }
     }
 
-    /// Presets for quick selection
+    /// Presets for quick selection (currency-aware for money goals)
     var presets: [Double] {
+        let isUSD = NC.currencySymbol == "$"
         switch self {
-        case .spending: return [15000, 20000, 30000, 50000]
+        case .spending: return isUSD ? [1500, 2000, 3000, 5000] : [15000, 20000, 30000, 50000]
         case .steps: return [5000, 8000, 10000, 12000]
         case .sleep: return [6.5, 7, 7.5, 8]
         case .workout: return [2, 3, 4, 5]
         case .calories: return [200, 300, 400, 500]
         case .homeCooking: return [3, 4, 5, 7]
         case .eatingOut: return [2, 3, 5, 7]
-        case .savings: return [5000, 10000, 20000, 30000]
+        case .savings: return isUSD ? [500, 1000, 2000, 3000] : [5000, 10000, 20000, 30000]
         }
     }
 
@@ -105,7 +107,7 @@ struct Goal: Codable, Identifiable {
     var formattedTarget: String {
         switch type {
         case .spending, .savings:
-            return "₹\(Int(targetValue).formatted())"
+            return NC.money(targetValue)
         case .sleep:
             return String(format: "%.1f hrs", targetValue)
         case .steps:
@@ -215,7 +217,7 @@ actor GoalStore {
                 progress: min(progress, 1.5),
                 isOnTrack: progress >= 0.5,
                 streakDays: 0,
-                statusText: saved >= goal.targetValue ? "Goal met!" : "₹\(Int(goal.targetValue - saved).formatted()) to go"
+                statusText: saved >= goal.targetValue ? "Goal met!" : "\(NC.money(goal.targetValue - saved)) to go"
             )
 
         case .steps:

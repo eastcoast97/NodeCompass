@@ -116,7 +116,9 @@ class DashboardViewModel: ObservableObject {
         isEmpty = false
 
         let currencyCount = Dictionary(grouping: transactions, by: { $0.currencySymbol })
-        primaryCurrencySymbol = currencyCount.max(by: { $0.value.count < $1.value.count })?.key ?? "$"
+        primaryCurrencySymbol = currencyCount.max(by: { $0.value.count < $1.value.count })?.key ?? Locale.current.currencySymbol ?? "$"
+        // Persist for global access (goals, score, etc.)
+        UserDefaults.standard.set(primaryCurrencySymbol, forKey: "primaryCurrencySymbol")
 
         totalSpend = store.totalSpendThisMonth
         totalIncome = store.totalIncomeThisMonth

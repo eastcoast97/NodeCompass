@@ -186,7 +186,7 @@ private struct GoalCard: View {
     private var formattedCurrent: String {
         switch item.goal.type {
         case .spending, .savings:
-            return "₹\(Int(item.currentValue).formatted())"
+            return NC.money(item.currentValue)
         case .sleep:
             return String(format: "%.1f hrs", item.currentValue)
         case .steps:
@@ -205,6 +205,9 @@ private struct AddGoalSheet: View {
     let onAdd: (GoalType, Double) -> Void
     @State private var selectedType: GoalType?
     @State private var targetValue: Double = 0
+    @State private var customValueText: String = ""
+    @State private var useCustom: Bool = false
+    @FocusState private var customFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -225,24 +228,26 @@ private struct AddGoalSheet: View {
                             Text(type.title)
                                 .font(.title3.bold())
 
-                            // Presets
+                            // Quick presets
                             VStack(spacing: 10) {
-                                Text("Choose a target")
+                                Text("Quick select")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                                     ForEach(type.presets, id: \.self) { preset in
                                         Button {
+                                            useCustom = false
+                                            customValueText = ""
                                             targetValue = preset
                                         } label: {
                                             Text(formatPreset(preset, type: type))
                                                 .font(.subheadline.bold())
-                                                .foregroundStyle(targetValue == preset ? .white : .primary)
+                                                .foregroundStyle(!useCustom && targetValue == preset ? .white : .primary)
                                                 .frame(maxWidth: .infinity)
                                                 .padding(.vertical, 12)
                                                 .background(
-                                                    targetValue == preset
+                                                    !useCustom && targetValue == preset
                                                         ? AnyShapeStyle(pillarColor(type))
                                                         : AnyShapeStyle(Color(.systemGray5)),
                                                     in: RoundedRectangle(cornerRadius: NC.iconRadius)
@@ -252,14 +257,44 @@ private struct AddGoalSheet: View {
                                 }
                             }
 
-                            // Unit label
-                            Text(type.unit)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            // Custom value input
+                            VStack(spacing: 8) {
+                                Text("Or set your own")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                HStack(spacing: 8) {
+                                    if type == .spending || type == .savings {
+                                        Text(NC.currencySymbol)
+                                            .font(.headline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    TextField(formatPreset(type.defaultValue, type: type), text: $customValueText)
+                                        .font(.title3.bold())
+                                        .keyboardType(type == .sleep ? .decimalPad : .numberPad)
+                                        .focused($customFieldFocused)
+                                        .onChange(of: customValueText) {
+                                            if let val = Double(customValueText), val > 0 {
+                                                useCustom = true
+                                                targetValue = val
+                                            }
+                                        }
+                                    Text(type.unit)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: NC.iconRadius)
+                                        .stroke(useCustom ? pillarColor(type) : Color(.systemGray4), lineWidth: useCustom ? 2 : 1)
+                                )
+                            }
 
                             // Confirm
                             Button {
-                                onAdd(type, targetValue > 0 ? targetValue : type.defaultValue)
+                                let finalValue = targetValue > 0 ? targetValue : type.defaultValue
+                                onAdd(type, finalValue)
                             } label: {
                                 Text("Set Goal")
                                     .font(.headline)
@@ -339,7 +374,7 @@ private struct AddGoalSheet: View {
 
     private func formatPreset(_ value: Double, type: GoalType) -> String {
         switch type {
-        case .spending, .savings: return "₹\(Int(value).formatted())"
+        case .spending, .savings: return NC.money(value)
         case .sleep: return String(format: "%.1f", value)
         case .steps: return "\(Int(value).formatted())"
         default: return "\(Int(value))"

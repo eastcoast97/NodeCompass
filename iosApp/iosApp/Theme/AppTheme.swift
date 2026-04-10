@@ -35,6 +35,24 @@ enum NC {
     /// Divider leading indent (icon + spacing)
     static let dividerIndent: CGFloat = 62
 
+    // MARK: - Currency
+
+    /// The user's primary currency symbol, detected from their transactions.
+    /// Falls back to locale-based symbol, then "$".
+    static var currencySymbol: String {
+        // First: check what the user's transactions use most
+        if let stored = UserDefaults.standard.string(forKey: "primaryCurrencySymbol"), !stored.isEmpty {
+            return stored
+        }
+        // Fallback: locale
+        return Locale.current.currencySymbol ?? "$"
+    }
+
+    /// Format a monetary value with the user's currency symbol.
+    static func money(_ amount: Double) -> String {
+        "\(currencySymbol)\(Int(amount).formatted())"
+    }
+
     // MARK: - Category Colors (vibrant, accessible palette)
 
     static let categoryColors: [String: Color] = [
