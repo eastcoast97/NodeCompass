@@ -1,0 +1,79 @@
+CREATE TABLE TransactionEntity (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    merchant TEXT NOT NULL,
+    category TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'MANUAL',
+    raw_text TEXT NOT NULL,
+    account TEXT,
+    is_recurring INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_transaction_timestamp ON TransactionEntity(timestamp);
+CREATE INDEX idx_transaction_category ON TransactionEntity(category);
+CREATE INDEX idx_transaction_merchant ON TransactionEntity(merchant);
+CREATE INDEX idx_transaction_source ON TransactionEntity(source);
+
+-- Get all transactions ordered by date
+getAllTransactions:
+SELECT * FROM TransactionEntity ORDER BY timestamp DESC;
+
+-- Get transactions for a specific month
+getTransactionsByMonth:
+SELECT * FROM TransactionEntity
+WHERE timestamp >= :startOfMonth AND timestamp < :endOfMonth
+ORDER BY timestamp DESC;
+
+-- Get spending by category for a month
+getSpendingByCategory:
+SELECT category, SUM(amount) AS total
+FROM TransactionEntity
+WHERE type = 'DEBIT' AND timestamp >= :startOfMonth AND timestamp < :endOfMonth
+GROUP BY category
+ORDER BY total DESC;
+
+-- Detect recurring charges (potential ghost subscriptions)
+getRecurringCharges:
+SELECT merchant, amount, currency, COUNT(*) AS occurrence_count, MAX(timestamp) AS last_seen
+FROM TransactionEntity
+WHERE type = 'DEBIT'
+GROUP BY merchant, amount, currency
+HAVING COUNT(*) >= 2
+ORDER BY last_seen DESC;
+
+-- Total spend this month
+getTotalSpendThisMonth:
+SELECT COALESCE(SUM(amount), 0.0) AS total
+FROM TransactionEntity
+WHERE type = 'DEBIT' AND timestamp >= :startOfMonth AND timestamp < :endOfMonth;
+
+-- Get transactions by source (SMS, EMAIL, MANUAL)
+getTransactionsBySource:
+SELECT * FROM TransactionEntity
+WHERE source = :source
+ORDER BY timestamp DESC;
+
+-- Insert a new transaction
+insertTransaction:
+INSERT INTO TransactionEntity (amount, currency, merchant, category, timestamp, type, source, raw_text, account, is_recurring, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Delete a transaction
+deleteTransaction:
+DELETE FROM TransactionEntity WHERE id = ?;
+
+-- Check for duplicate (same amount, merchant, timestamp)
+findDuplicate:
+SELECT COUNT(*) AS count
+FROM TransactionEntity
+WHERE amount = :amount AND merchant = :merchant AND timestamp = :timestamp;
+
+-- Get recent transactions (limit)
+getRecentTransactions:
+SELECT * FROM TransactionEntity
+ORDER BY timestamp DESC
+LIMIT :limit;

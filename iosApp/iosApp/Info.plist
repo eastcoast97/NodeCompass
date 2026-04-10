@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.nodecompass.app.refresh</string>
+		<string>com.nodecompass.app.processing</string>
+	</array>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.nodecompass.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>nodecompass</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Google Sign-In</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.125462112839-nq5tmt5gasjbkc4r7uevlr31oi3rrt03</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>GIDClientID</key>
+	<string>125462112839-nq5tmt5gasjbkc4r7uevlr31oi3rrt03.apps.googleusercontent.com</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>NodeCompass uses Face ID to protect your financial data.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>NodeCompass reads your health data (steps, workouts, sleep, heart rate) to connect fitness with spending patterns and surface smart insights. All processing is on-device.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Always-on location lets NodeCompass passively learn your routines and connect spending to places — even when the app is closed.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>NodeCompass uses your location to connect spending with places you visit — like restaurants, gyms, and stores.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>NodeCompass needs microphone access for voice-based food logging.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>NodeCompass uses speech recognition to let you log meals by voice. All processing happens on-device.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+		<string>location</string>
+	</array>
+</dict>
+</plist>

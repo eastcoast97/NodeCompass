@@ -1,0 +1,50 @@
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Xcode
+iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/
+iosApp/iosApp.xcodeproj/xcuserdata/
+iosApp/DerivedData/
+*.xcuserdatad
+*.xcscmblueprint
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+
+# Gradle
+.gradle/
+build/
+androidApp/build/
+shared/build/
+local.properties
+
+# Kotlin
+*.class
+*.jar
+
+# Node / Server
+server/node_modules/
+server/.env
+server/dist/
+
+# Secrets & keys
+*.p12
+*.key
+*.pem
+.env
+*.secret
+
+# IDE
+.idea/
+.vscode/
+
+# Claude Code
+.claude/
+
+# Build artifacts
+/tmp/
+DerivedData/
