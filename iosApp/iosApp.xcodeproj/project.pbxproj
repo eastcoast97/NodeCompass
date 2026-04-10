@@ -12,6 +12,7 @@
 		058686C8E6D871ED84DA9101 /* PlaidService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 334C63DA2F79650F4421D505 /* PlaidService.swift */; };
 		080C38D6B6E6C2A00E3F14DA /* FoodAutoDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B0B14972CB68CF44B17D34 /* FoodAutoDetector.swift */; };
 		08612EC0817909BF81E47160 /* UserProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C9682C27FF6CF927F56115 /* UserProfileStore.swift */; };
+		0B10CDDFAC8D4D7D371ECEC6 /* LifeScoreEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6213C92BE7F89BF2DC5CE589 /* LifeScoreEngine.swift */; };
 		0BFE2453982B24CCB51203E5 /* EmailSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565DFBF3625B3CE3B402F579 /* EmailSyncView.swift */; };
 		11E7C7EF9343A220AB8E8638 /* GmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59739E4F9B3F83F237819C2 /* GmailService.swift */; };
 		135660C10BB7B48F210F282D /* FoodAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E0C2548B93274577920891 /* FoodAnalyzer.swift */; };
@@ -19,6 +20,7 @@
 		1C81D6F669B7BB6D2FFCCEB3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = B6E18E1D8AEE3BF1FDA1E5E9 /* GoogleSignIn */; };
 		1F58191B6654C4E174D04F65 /* LifeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF34756D6C79F4A69872FD0D /* LifeEvent.swift */; };
 		1F9C660C476B1677432DAAC0 /* MerchantNameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361F214944A93CF2BBA19220 /* MerchantNameResolver.swift */; };
+		2096127801237A38602A0AB2 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0276F01AE57228A57F07C4C /* GoalsView.swift */; };
 		22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F543015C899423D4B01CEB2E /* Assets.xcassets */; };
 		2548D31B2FFD8C3D1E1EEFBF /* NutritionDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F1B5247E0CC89CE4187B6A /* NutritionDatabase.swift */; };
 		27CF968BD4FD26515C7CC106 /* LocationSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5515DA495846DAFB581A444B /* LocationSetupView.swift */; };
@@ -31,6 +33,7 @@
 		3FED69853086FF3185B68E66 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443162E1767EFCE1E3A33DF8 /* DashboardViewModel.swift */; };
 		407951FC63D2B52F949FB36C /* HealthCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECF316164EDDAAE8DD404D1D /* HealthCollector.swift */; };
 		445C052442747365B7CB2124 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D54F64CAC303BBA3536F06CD /* GoogleSignInSwift */; };
+		4A7B2931E340B09085A1FEDB /* GoalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B70500E4D518BE50B4A5B5 /* GoalStore.swift */; };
 		4D5B24398B8B871C54E2ABCD /* SpendingAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189939C37AF2250AE046348D /* SpendingAnalyzer.swift */; };
 		502AD6E9FAA4D04D20461DCD /* GroqService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC82BE74DFE9D7EF2258721D /* GroqService.swift */; };
 		52EA6E2EB6D69497A598F515 /* HealthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA7710153C19AA6B7F089F5 /* HealthGateView.swift */; };
@@ -105,10 +108,12 @@
 		5BF068946FB82B2B090E9859 /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
 		5E3F3A380E7CE9962A1E6ACA /* FoodDeliveryParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodDeliveryParser.swift; sourceTree = "<group>"; };
 		60E952FB2367F2A7E2A989D4 /* FoodOrderScraper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodOrderScraper.swift; sourceTree = "<group>"; };
+		6213C92BE7F89BF2DC5CE589 /* LifeScoreEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeScoreEngine.swift; sourceTree = "<group>"; };
 		6A411C8151B9626697390188 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		76860E48ED8E2F855A6B4DD5 /* SmartCategorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCategorizer.swift; sourceTree = "<group>"; };
 		768C496DD9C11F0BA91CEE6A /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
 		76B0B14972CB68CF44B17D34 /* FoodAutoDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAutoDetector.swift; sourceTree = "<group>"; };
+		77B70500E4D518BE50B4A5B5 /* GoalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalStore.swift; sourceTree = "<group>"; };
 		7D795C7A5B8E99DF66BB27DA /* InsightsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsViewModel.swift; sourceTree = "<group>"; };
 		8286F5C87CCDECE6C30C3A24 /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
 		85DE8D927EC9BFDFEF39DC53 /* FoodLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodLogView.swift; sourceTree = "<group>"; };
@@ -120,6 +125,7 @@
 		96E034857217E3051EED9D5E /* BankConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankConnectionView.swift; sourceTree = "<group>"; };
 		9BDEA41C478261CDB5A7DD43 /* CrossSourceAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossSourceAnalyzer.swift; sourceTree = "<group>"; };
 		9FD71F36E68D40DCEFCBEC1D /* NodeCompassApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeCompassApp.swift; sourceTree = "<group>"; };
+		A0276F01AE57228A57F07C4C /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		A0C17B88CBA08421F33F6735 /* LocationCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationCollector.swift; sourceTree = "<group>"; };
 		A59739E4F9B3F83F237819C2 /* GmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GmailService.swift; sourceTree = "<group>"; };
 		ADA7710153C19AA6B7F089F5 /* HealthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthGateView.swift; sourceTree = "<group>"; };
@@ -219,6 +225,7 @@
 				565DFBF3625B3CE3B402F579 /* EmailSyncView.swift */,
 				85DE8D927EC9BFDFEF39DC53 /* FoodLogView.swift */,
 				AEFDEC9CB7EF660EA3D90091 /* GeminiSetupView.swift */,
+				A0276F01AE57228A57F07C4C /* GoalsView.swift */,
 				ADA7710153C19AA6B7F089F5 /* HealthGateView.swift */,
 				5BF068946FB82B2B090E9859 /* InsightsView.swift */,
 				9515B652DFD608407284B391 /* LocationGateView.swift */,
@@ -249,6 +256,8 @@
 				8286F5C87CCDECE6C30C3A24 /* EventStore.swift */,
 				76B0B14972CB68CF44B17D34 /* FoodAutoDetector.swift */,
 				D6BF4CDA71D96FD251FC705A /* FoodStore.swift */,
+				77B70500E4D518BE50B4A5B5 /* GoalStore.swift */,
+				6213C92BE7F89BF2DC5CE589 /* LifeScoreEngine.swift */,
 				3CA9D4CE3F20019B2118E57D /* NotificationEngine.swift */,
 				46F1B5247E0CC89CE4187B6A /* NutritionDatabase.swift */,
 				C2DB7C11CEBC1E13D981A8FF /* PatternEngine.swift */,
@@ -423,6 +432,8 @@
 				6D3C652C87360FCE5258A252 /* FoodStore.swift in Sources */,
 				7E71D30EA094EDCD1F85667B /* GeminiSetupView.swift in Sources */,
 				11E7C7EF9343A220AB8E8638 /* GmailService.swift in Sources */,
+				4A7B2931E340B09085A1FEDB /* GoalStore.swift in Sources */,
+				2096127801237A38602A0AB2 /* GoalsView.swift in Sources */,
 				502AD6E9FAA4D04D20461DCD /* GroqService.swift in Sources */,
 				C6D1E1DCE1A51454824ECF70 /* HealthAnalyzer.swift in Sources */,
 				407951FC63D2B52F949FB36C /* HealthCollector.swift in Sources */,
@@ -433,6 +444,7 @@
 				86922E12A5B82D473854294A /* IntegrationAuthAlert.swift in Sources */,
 				FB39938CC4E2E7B734725E8C /* KeychainService.swift in Sources */,
 				1F58191B6654C4E174D04F65 /* LifeEvent.swift in Sources */,
+				0B10CDDFAC8D4D7D371ECEC6 /* LifeScoreEngine.swift in Sources */,
 				7DCAE6FF690255D776897E02 /* LocationAnalyzer.swift in Sources */,
 				1BF95D6B806A1850610E6CB5 /* LocationCollector.swift in Sources */,
 				E04BDF60961932EED8648493 /* LocationGateView.swift in Sources */,

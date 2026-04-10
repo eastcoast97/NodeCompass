@@ -177,6 +177,11 @@ actor FoodStore {
         return entries.filter { $0.timestamp >= startOfDay }
     }
 
+    func entriesForWeek() -> [FoodLogEntry] {
+        let startOfWeek = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
+        return entries.filter { $0.timestamp >= startOfWeek }
+    }
+
     func entries(for date: Date) -> [FoodLogEntry] {
         let cal = Calendar.current
         let start = cal.startOfDay(for: date)

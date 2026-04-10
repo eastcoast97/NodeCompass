@@ -39,6 +39,10 @@ class DashboardViewModel: ObservableObject {
     @Published var emailReceiptsCount: Int = 0
     @Published var recentOrders: [TransactionItem] = []
 
+    // Life Score & Goals
+    @Published var lifeScore: LifeScoreEngine.DailyScore?
+    @Published var goalProgress: [GoalProgress] = []
+
     @Published var isEmpty: Bool = true
 
     private let store = TransactionStore.shared
@@ -84,6 +88,10 @@ class DashboardViewModel: ObservableObject {
                 let digits = streakInsight.title.prefix(while: { $0.isNumber })
                 homeCookingStreak = Int(digits) ?? 0
             }
+
+            // Life Score & Goals
+            lifeScore = await LifeScoreEngine.shared.calculateToday()
+            goalProgress = await GoalStore.shared.progressForAll()
         }
 
         // Orders (email source — aggregated across all Gmail accounts)

@@ -49,6 +49,7 @@ struct DashboardView: View {
     @EnvironmentObject var store: TransactionStore
     @State private var activePage: DashboardPage = .wealth
     @State private var showFoodLog = false
+    @State private var showGoals = false
     @State private var pendingEntryToComplete: FoodStore.FoodLogEntry?
 
     var body: some View {
@@ -61,6 +62,15 @@ struct DashboardView: View {
                             .padding(.horizontal)
                             .padding(.top, 8)
                             .padding(.bottom, 8)
+                    }
+
+                    // Life Score + Goals
+                    if let score = vm.lifeScore {
+                        LifeScoreCard(score: score, goalProgress: vm.goalProgress, onGoalsTap: {
+                            showGoals = true
+                        })
+                        .padding(.horizontal)
+                        .padding(.top, 8)
                     }
 
                     // Swipeable Hero Cards
@@ -85,6 +95,9 @@ struct DashboardView: View {
             authAlert.check()
         }
         .onChange(of: store.transactions.count) { vm.load() }
+        .sheet(isPresented: $showGoals) {
+            GoalsView()
+        }
         .sheet(isPresented: $showFoodLog) {
             FoodLogView()
                 .onDisappear { vm.load() }
@@ -1228,6 +1241,167 @@ private struct GhostSubscriptionsCard: View {
         .background(NC.warning.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous).stroke(NC.warning.opacity(0.2), lineWidth: 1))
+    }
+}
+
+// MARK: - Life Score Card
+
+private struct LifeScoreCard: View {
+    let score: LifeScoreEngine.DailyScore
+    let goalProgress: [GoalProgress]
+    let onGoalsTap: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            // Score ring + number
+            HStack(spacing: 16) {
+                // Animated ring
+                ZStack {
+                    Circle()
+                        .stroke(Color(.systemGray5), lineWidth: 6)
+                        .frame(width: 64, height: 64)
+                    Circle()
+                        .trim(from: 0, to: Double(score.total) / 100.0)
+                        .stroke(scoreColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .frame(width: 64, height: 64)
+                        .rotationEffect(.degrees(-90))
+                    Text("\(score.total)")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(scoreColor)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Life Score")
+                        .font(.headline)
+                    Text(scoreLabel)
+                        .font(.caption)
+                        .foregroundStyle(scoreColor)
+                }
+
+                Spacer()
+
+                // Goals shortcut
+                Button(action: onGoalsTap) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "target")
+                            .font(.title3)
+                        Text("Goals")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(NC.teal)
+                    .frame(width: 52, height: 52)
+                    .background(NC.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.iconRadius))
+                }
+            }
+
+            // Pillar breakdown bar
+            HStack(spacing: 8) {
+                PillarPill(label: "Wealth", score: score.wealth, color: NC.teal)
+                PillarPill(label: "Health", score: score.health, color: .pink)
+                PillarPill(label: "Food", score: score.food, color: NC.food)
+                PillarPill(label: "Routine", score: score.routine, color: .blue)
+            }
+
+            // Goal progress (top 3)
+            if !goalProgress.isEmpty {
+                Divider()
+                VStack(spacing: 8) {
+                    ForEach(goalProgress.prefix(3)) { item in
+                        MiniGoalRow(item: item)
+                    }
+                    if goalProgress.count > 3 {
+                        Button(action: onGoalsTap) {
+                            Text("View all \(goalProgress.count) goals")
+                                .font(.caption)
+                                .foregroundStyle(NC.teal)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(NC.hPad)
+        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+    }
+
+    private var scoreColor: Color {
+        if score.total >= 80 { return .green }
+        if score.total >= 60 { return NC.teal }
+        if score.total >= 40 { return .orange }
+        return NC.spend
+    }
+
+    private var scoreLabel: String {
+        if score.total >= 80 { return "Excellent — keep it up!" }
+        if score.total >= 60 { return "Good — room to improve" }
+        if score.total >= 40 { return "Fair — let's work on it" }
+        return "Needs attention"
+    }
+}
+
+private struct PillarPill: View {
+    let label: String; let score: Int; let color: Color
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(score)")
+                .font(.caption.bold())
+                .foregroundStyle(color)
+            Text(label)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color(.systemGray5))
+                        .frame(height: 3)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: geo.size.width * Double(score) / 100.0, height: 3)
+                }
+            }
+            .frame(height: 3)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct MiniGoalRow: View {
+    let item: GoalProgress
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: item.goal.type.icon)
+                .font(.caption)
+                .foregroundStyle(pillarColor)
+                .frame(width: 20)
+            Text(item.goal.type.title)
+                .font(.caption)
+                .lineLimit(1)
+            Spacer()
+            // Mini progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color(.systemGray5))
+                        .frame(height: 4)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(item.isOnTrack ? .green : .orange)
+                        .frame(width: min(geo.size.width, geo.size.width * item.progress), height: 4)
+                }
+            }
+            .frame(width: 60, height: 4)
+            Text("\(Int(min(item.progress, 1.0) * 100))%")
+                .font(.caption2.bold())
+                .foregroundStyle(item.isOnTrack ? .green : .orange)
+                .frame(width: 32, alignment: .trailing)
+        }
+    }
+
+    private var pillarColor: Color {
+        switch item.goal.type.pillar {
+        case "wealth": return NC.teal
+        case "health": return .pink
+        case "food": return NC.food
+        default: return .blue
+        }
     }
 }
 
