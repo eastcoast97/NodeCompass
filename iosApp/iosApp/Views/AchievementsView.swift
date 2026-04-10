@@ -8,6 +8,9 @@ struct AchievementsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    // Summary Header
+                    summaryHeader
+
                     // Active Streaks
                     if !vm.activeStreaks.isEmpty {
                         streaksSection
@@ -37,6 +40,52 @@ struct AchievementsView: View {
         }
     }
 
+    // MARK: - Summary Header
+
+    private var summaryHeader: some View {
+        HStack(spacing: 20) {
+            // Earned count
+            VStack(spacing: 4) {
+                Text("\(vm.earned.count)")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(NC.teal)
+                Text("Earned")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider().frame(height: 40)
+
+            // Best streak
+            VStack(spacing: 4) {
+                let bestStreak = vm.activeStreaks.max(by: { $0.currentDays < $1.currentDays })
+                Text("\(bestStreak?.currentDays ?? 0)")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(.orange)
+                Text("Best Streak")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider().frame(height: 40)
+
+            // Total possible
+            VStack(spacing: 4) {
+                Text("\(AchievementEngine.AchievementType.allCases.count)")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                Text("Total")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(NC.hPad)
+        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+    }
+
     // MARK: - Streaks
 
     private var streaksSection: some View {
@@ -52,26 +101,32 @@ struct AchievementsView: View {
                 ForEach(vm.activeStreaks) { streak in
                     HStack(spacing: 10) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
-                                .fill(.orange.opacity(0.12))
-                                .frame(width: 36, height: 36)
+                            Circle()
+                                .fill(.orange.opacity(0.1))
+                                .frame(width: 38, height: 38)
                             Image(systemName: streak.type.icon)
-                                .font(.caption)
+                                .font(.system(size: 14))
                                 .foregroundStyle(.orange)
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("\(streak.currentDays) days")
-                                .font(.subheadline.bold())
+                            Text("\(streak.currentDays)")
+                                .font(.title3.bold())
+                                .foregroundStyle(.orange) +
+                            Text(" days")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             Text(streak.type.title)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
 
-                        Spacer()
+                        Spacer(minLength: 0)
                     }
-                    .padding(10)
-                    .background(.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                    .padding(12)
+                    .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+                    .shadow(color: .black.opacity(0.03), radius: 3, y: 2)
                 }
             }
         }
@@ -94,11 +149,11 @@ struct AchievementsView: View {
                 miniStat(value: "\(vm.stats.totalHomeMeals)", label: "Home Meals", icon: "frying.pan.fill", color: NC.food)
                 miniStat(value: "\(vm.stats.daysScoreAbove80)", label: "Score 80+", icon: "star.fill", color: .orange)
                 miniStat(value: NC.money(vm.stats.totalSaved), label: "Saved", icon: "banknote.fill", color: .green)
-                miniStat(value: "\(vm.earned.count)", label: "Badges", icon: "trophy.fill", color: .yellow)
+                miniStat(value: "\(vm.earned.count)/\(AchievementEngine.AchievementType.allCases.count)", label: "Badges", icon: "trophy.fill", color: .yellow)
             }
         }
         .padding(NC.hPad)
-        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
     }
 
     private func miniStat(value: String, label: String, icon: String, color: Color) -> some View {
@@ -106,6 +161,8 @@ struct AchievementsView: View {
             Image(systemName: icon)
                 .font(.caption)
                 .foregroundStyle(color)
+                .frame(width: 26, height: 26)
+                .background(color.opacity(0.1), in: Circle())
             Text(value)
                 .font(.subheadline.bold())
             Text(label)
@@ -128,7 +185,32 @@ struct AchievementsView: View {
             }
 
             ForEach(vm.earned) { achievement in
-                achievementRow(achievement, locked: false)
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(pillarColor(achievement.pillar).opacity(0.1))
+                            .frame(width: NC.iconSize, height: NC.iconSize)
+                        Image(systemName: achievement.icon)
+                            .font(.subheadline)
+                            .foregroundStyle(pillarColor(achievement.pillar))
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(achievement.title)
+                            .font(.subheadline.bold())
+                        Text(achievement.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text(achievement.earnedAt, style: .date)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(14)
+                .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
             }
         }
     }
@@ -146,71 +228,35 @@ struct AchievementsView: View {
             }
 
             ForEach(vm.locked, id: \.rawValue) { type in
-                lockedRow(type)
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(.systemGray5))
+                            .frame(width: NC.iconSize, height: NC.iconSize)
+                        Image(systemName: type.icon)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(formatTypeName(type.rawValue))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("Keep going to unlock")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    Spacer()
+                }
+                .padding(14)
+                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+                .opacity(0.7)
             }
         }
     }
 
-    private func achievementRow(_ a: AchievementEngine.Achievement, locked: Bool) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
-                    .fill(pillarColor(a.pillar).opacity(0.12))
-                    .frame(width: NC.iconSize, height: NC.iconSize)
-                Image(systemName: a.icon)
-                    .font(.subheadline)
-                    .foregroundStyle(pillarColor(a.pillar))
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(a.title)
-                    .font(.subheadline.bold())
-                Text(a.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Text(a.earnedAt, style: .date)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, NC.hPad)
-        .padding(.vertical, NC.vPad)
-        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
-    }
-
-    private func lockedRow(_ type: AchievementEngine.AchievementType) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
-                    .fill(Color(.systemGray5))
-                    .frame(width: NC.iconSize, height: NC.iconSize)
-                Image(systemName: "lock.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(type.rawValue.replacingOccurrences(of: "([A-Z])", with: " $1", options: .regularExpression).capitalized)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text("Keep going to unlock")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Spacer()
-
-            Image(systemName: type.icon)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, NC.hPad)
-        .padding(.vertical, NC.vPad)
-        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: NC.cardRadius))
-    }
+    // MARK: - Helpers
 
     private func pillarColor(_ pillar: String) -> Color {
         switch pillar {
@@ -220,6 +266,13 @@ struct AchievementsView: View {
         case "routine": return .blue
         default: return .gray
         }
+    }
+
+    private func formatTypeName(_ raw: String) -> String {
+        raw.replacingOccurrences(of: "([A-Z])", with: " $1", options: .regularExpression)
+           .replacingOccurrences(of: "([0-9]+)", with: " $1", options: .regularExpression)
+           .capitalized
+           .trimmingCharacters(in: .whitespaces)
     }
 }
 
@@ -237,7 +290,6 @@ class AchievementsViewModel: ObservableObject {
     )
 
     func load() async {
-        // Evaluate today first (might earn new ones)
         _ = await AchievementEngine.shared.evaluateToday()
 
         earned = await AchievementEngine.shared.allAchievements()

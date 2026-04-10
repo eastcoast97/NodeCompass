@@ -5,8 +5,10 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
 
     init() {
+        // Modern translucent tab bar
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()
+        appearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial)
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }

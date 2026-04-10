@@ -5,15 +5,16 @@ struct LockScreenView: View {
     @State private var logoScale: CGFloat = 0.85
     @State private var logoOpacity: CGFloat = 0
     @State private var glowOpacity: CGFloat = 0
+    @State private var contentOpacity: CGFloat = 0
 
     var body: some View {
         ZStack {
-            // Background — matches the logo's dark metallic feel
+            // Background
             LinearGradient(
                 colors: [
-                    Color(red: 0.06, green: 0.07, blue: 0.10),
-                    Color(red: 0.10, green: 0.12, blue: 0.16),
-                    Color(red: 0.06, green: 0.07, blue: 0.10)
+                    Color(red: 0.04, green: 0.05, blue: 0.09),
+                    Color(red: 0.08, green: 0.09, blue: 0.14),
+                    Color(red: 0.04, green: 0.05, blue: 0.09)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -23,29 +24,35 @@ struct LockScreenView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Logo Image from asset catalog
-                VStack(spacing: 20) {
+                // Logo
+                VStack(spacing: 24) {
                     ZStack {
-                        // Glow behind the logo
+                        // Ambient glow
                         Circle()
-                            .fill(NC.teal.opacity(0.15))
-                            .frame(width: 200, height: 200)
-                            .blur(radius: 40)
+                            .fill(NC.teal.opacity(0.12))
+                            .frame(width: 180, height: 180)
+                            .blur(radius: 50)
                             .opacity(glowOpacity)
 
                         Image("NodeCompassLogo")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 280)
+                            .frame(width: 240)
                     }
                     .scaleEffect(logoScale)
                     .opacity(logoOpacity)
+
+                    // Tagline
+                    Text("Your life, understood.")
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.3))
+                        .opacity(contentOpacity)
                 }
 
                 Spacer()
 
-                // Unlock section
-                VStack(spacing: 24) {
+                // Unlock
+                VStack(spacing: 20) {
                     Button {
                         Task { await authService.authenticate() }
                     } label: {
@@ -57,7 +64,7 @@ struct LockScreenView: View {
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 17)
                         .background(
                             LinearGradient(
                                 colors: [NC.teal, NC.teal.opacity(0.7)],
@@ -65,8 +72,8 @@ struct LockScreenView: View {
                                 endPoint: .trailing
                             )
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
-                        .shadow(color: NC.teal.opacity(0.3), radius: 16, y: 6)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: NC.teal.opacity(0.25), radius: 16, y: 6)
                     }
 
                     HStack(spacing: 6) {
@@ -75,19 +82,23 @@ struct LockScreenView: View {
                         Text("All data stored on-device only")
                             .font(.caption)
                     }
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(.white.opacity(0.25))
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 60)
+                .padding(.bottom, 56)
+                .opacity(contentOpacity)
             }
         }
         .task {
-            withAnimation(.easeOut(duration: 0.9)) {
+            withAnimation(.easeOut(duration: 0.8)) {
                 logoScale = 1.0
                 logoOpacity = 1.0
             }
-            withAnimation(.easeOut(duration: 1.5).delay(0.3)) {
+            withAnimation(.easeOut(duration: 1.2).delay(0.2)) {
                 glowOpacity = 1.0
+            }
+            withAnimation(.easeOut(duration: 0.6).delay(0.4)) {
+                contentOpacity = 1.0
             }
             await authService.authenticate()
         }

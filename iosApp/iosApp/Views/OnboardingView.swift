@@ -4,13 +4,14 @@ import HealthKit
 import GoogleSignIn
 import LinkKit
 
-// MARK: - Step-by-Step Onboarding
+// MARK: - Modern Onboarding Flow
+//
+// 4 steps — smooth, non-blocking, delightful:
+//   Step 0: Welcome (pillars + privacy)
+//   Step 1: Permissions (Location + Health — both optional, skip-friendly)
+//   Step 2: Connect Data (Bank + Email)
+//   Step 3: Ready — celebration + what's next
 
-/// Clean 3-step onboarding:
-/// Step 0: Welcome — purpose + privacy promise
-/// Step 1: Location (MANDATORY)
-/// Step 2: Connect Data (Bank + Email combined)
-/// → Health/AI setup lives in the "You" tab after onboarding
 struct OnboardingView: View {
     @StateObject private var state = OnboardingState()
     @Binding var isComplete: Bool
@@ -18,21 +19,38 @@ struct OnboardingView: View {
     @State private var currentStep = 0
     @State private var appeared = false
 
-    private let totalSteps = 3
+    private let totalSteps = 4
 
     var body: some View {
         ZStack {
-            // Background
-            Color(red: 0.06, green: 0.07, blue: 0.10)
-                .ignoresSafeArea()
+            // Gradient background
+            LinearGradient(
+                colors: [
+                    Color(red: 0.04, green: 0.05, blue: 0.09),
+                    Color(red: 0.08, green: 0.09, blue: 0.14),
+                    Color(red: 0.04, green: 0.05, blue: 0.09)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
             VStack(spacing: 0) {
+                // Progress bar (visible on steps 1-3)
+                if currentStep > 0 {
+                    progressBar
+                        .padding(.top, 8)
+                        .padding(.horizontal, 32)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
                 // Step content
                 Group {
                     switch currentStep {
                     case 0: welcomeStep
-                    case 1: locationStep
+                    case 1: permissionsStep
                     case 2: connectDataStep
+                    case 3: readyStep
                     default: EmptyView()
                     }
                 }
@@ -41,16 +59,29 @@ struct OnboardingView: View {
                     removal: .move(edge: .leading).combined(with: .opacity)
                 ))
 
-                Spacer(minLength: 16)
+                Spacer(minLength: 12)
 
-                // Bottom
+                // Bottom action
                 bottomBar
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 24)
                     .padding(.bottom, 40)
             }
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.5)) { appeared = true }
+            withAnimation(.easeOut(duration: 0.6)) { appeared = true }
+        }
+    }
+
+    // MARK: - Progress Bar
+
+    private var progressBar: some View {
+        HStack(spacing: 4) {
+            ForEach(1..<totalSteps, id: \.self) { step in
+                Capsule()
+                    .fill(step <= currentStep ? NC.teal : Color.white.opacity(0.08))
+                    .frame(height: 3)
+                    .animation(.spring(response: 0.4), value: currentStep)
+            }
         }
     }
 
@@ -59,150 +90,152 @@ struct OnboardingView: View {
     private var welcomeStep: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                // Logo + tagline
-                VStack(spacing: 8) {
-                    Text("Node")
-                        .font(.system(size: 38, weight: .light, design: .default))
-                        .foregroundStyle(.white.opacity(0.6)) +
-                    Text("Compass")
-                        .font(.system(size: 38, weight: .bold, design: .default))
-                        .foregroundStyle(.white)
+                // Logo
+                VStack(spacing: 10) {
+                    // App icon / logo
+                    ZStack {
+                        Circle()
+                            .fill(NC.teal.opacity(appeared ? 0.12 : 0))
+                            .frame(width: 100, height: 100)
+                            .blur(radius: 30)
 
-                    Text("Your life, understood.")
-                        .font(.subheadline)
-                        .foregroundStyle(NC.teal.opacity(0.8))
+                        Image("NodeCompassLogo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
+                    .scaleEffect(appeared ? 1 : 0.85)
+                    .opacity(appeared ? 1 : 0)
+
+                    VStack(spacing: 6) {
+                        Text("Node")
+                            .font(.system(size: 36, weight: .light))
+                            .foregroundStyle(.white.opacity(0.6)) +
+                        Text("Compass")
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundStyle(.white)
+
+                        Text("Your life, understood.")
+                            .font(.callout)
+                            .foregroundStyle(NC.teal.opacity(0.9))
+                    }
                 }
-                .padding(.top, 72)
-                .padding(.bottom, 36)
+                .padding(.top, 48)
+                .padding(.bottom, 32)
 
-                // Pillars — structured card
+                // Pillars
                 VStack(spacing: 0) {
                     PillarRow(icon: NC.currencyIconCircle, color: NC.teal,
-                              title: "Wealth", desc: "Every transaction, subscription & charge — tracked automatically")
-                    Divider().padding(.leading, 56).opacity(0.3)
+                              title: "Wealth", desc: "Every transaction, subscription & charge — tracked automatically",
+                              delay: 0.1, appeared: appeared)
+                    Divider().padding(.leading, 56).opacity(0.15)
                     PillarRow(icon: "heart.circle.fill", color: .pink,
-                              title: "Health", desc: "Steps, workouts, sleep — from any wearable via Apple Health")
-                    Divider().padding(.leading, 56).opacity(0.3)
+                              title: "Health", desc: "Steps, workouts, sleep — synced from Apple Health",
+                              delay: 0.2, appeared: appeared)
+                    Divider().padding(.leading, 56).opacity(0.15)
                     PillarRow(icon: "fork.knife.circle.fill", color: .orange,
-                              title: "Food", desc: "What you eat, where you order, nutrition over time")
-                    Divider().padding(.leading, 56).opacity(0.3)
+                              title: "Food", desc: "What you eat, where you order, nutrition over time",
+                              delay: 0.3, appeared: appeared)
+                    Divider().padding(.leading, 56).opacity(0.15)
                     PillarRow(icon: "location.circle.fill", color: .blue,
-                              title: "Places", desc: "Where you go, your routines, spending tied to locations")
+                              title: "Places", desc: "Where you go, your routines, spending tied to locations",
+                              delay: 0.4, appeared: appeared)
                 }
                 .padding(.vertical, 4)
-                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: NC.cardRadius)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
                 )
                 .padding(.horizontal, 24)
-                .padding(.bottom, 28)
+                .padding(.bottom, 24)
 
-                // Privacy card
-                VStack(spacing: 14) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.shield.fill")
-                            .foregroundStyle(NC.teal)
-                        Text("100% Private")
+                // Privacy
+                HStack(spacing: 12) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.title3)
+                        .foregroundStyle(NC.teal)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("100% On-Device")
                             .font(.subheadline.bold())
                             .foregroundStyle(.white)
-                        Spacer()
-                    }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        PrivacyLine(icon: "iphone.gen3", text: "All data stays on your device — nowhere else")
-                        PrivacyLine(icon: "icloud.slash.fill", text: "No servers, no cloud, no accounts to create")
-                        PrivacyLine(icon: "eye.slash.fill", text: "No one — not even us — can see your data")
-                        PrivacyLine(icon: "trash.fill", text: "Delete everything anytime from Settings")
+                        Text("Your data never leaves your phone. No servers, no accounts, no tracking.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.45))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(18)
-                .background(NC.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(NC.teal.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: NC.cardRadius)
-                        .stroke(NC.teal.opacity(0.15), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(NC.teal.opacity(0.12), lineWidth: 1)
                 )
                 .padding(.horizontal, 24)
             }
         }
     }
 
-    // MARK: - Step 1: Location (MANDATORY)
+    // MARK: - Step 1: Permissions (Location + Health — both optional)
 
-    private var locationStep: some View {
+    private var permissionsStep: some View {
         VStack(spacing: 0) {
-            // Step indicator
-            stepHeader(step: 1, total: 2, title: "Enable Location", subtitle: "Required to use NodeCompass")
+            // Header
+            VStack(spacing: 6) {
+                Text("Enable Permissions")
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                Text("These help NodeCompass learn your patterns — enable what you're comfortable with")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.4))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+            .padding(.top, 24)
+            .padding(.bottom, 20)
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    // Hero
-                    ZStack {
-                        Circle()
-                            .fill(.blue.opacity(0.08))
-                            .frame(width: 120, height: 120)
-                        Image(systemName: "location.fill.viewfinder")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.blue)
-                    }
-                    .padding(.top, 8)
+                VStack(spacing: 14) {
+                    // Location Permission Card
+                    PermissionCard(
+                        icon: "location.fill",
+                        color: .blue,
+                        title: "Location",
+                        subtitle: "Link spending to places, detect routines",
+                        detail: "Uses iOS visit detection — less than 1% battery",
+                        isGranted: state.locationConnected,
+                        isDenied: state.locationDenied,
+                        isLoading: state.locationLoading,
+                        action: { state.enableLocation() }
+                    )
 
-                    InfoCard(icon: "mappin.and.ellipse", color: .blue, title: "Why Location?", bullets: [
-                        ("cart.fill", "Link spending to restaurants, shops & gyms"),
-                        ("clock.arrow.2.circlepath", "Detect daily routines automatically"),
-                        ("lightbulb.fill", "\"You eat out 4x/week\" — insights from movement"),
-                    ])
+                    // Health Permission Card
+                    PermissionCard(
+                        icon: "heart.fill",
+                        color: .pink,
+                        title: "Apple Health",
+                        subtitle: "Sync steps, workouts, sleep & heart rate",
+                        detail: "Read-only — NodeCompass never writes health data",
+                        isGranted: state.healthConnected,
+                        isDenied: state.healthDenied,
+                        isLoading: state.healthLoading,
+                        action: { state.enableHealth() }
+                    )
 
-                    InfoCard(icon: "battery.100percent.bolt", color: NC.teal, title: "Private & Efficient", bullets: [
-                        ("bolt.fill", "< 1% battery — uses iOS visit detection, not GPS"),
-                        ("iphone.gen3", "100% on-device — never leaves your phone"),
-                        ("gearshape.fill", "Turn off anytime in Settings"),
-                    ])
-
-                    // Action
-                    if state.locationConnected {
-                        DoneBadge(text: "Location enabled")
-                    } else if state.locationDenied {
-                        VStack(spacing: 10) {
-                            Text("Location was denied. Please enable in Settings.")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .multilineTextAlignment(.center)
-                            Button {
-                                if let url = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(url)
-                                }
-                            } label: {
-                                Label("Open Settings", systemImage: "gear")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 12)
-                                    .background(.orange, in: Capsule())
-                            }
-                        }
-                    } else {
-                        Button { state.enableLocation() } label: {
-                            HStack(spacing: 8) {
-                                if state.locationLoading {
-                                    ProgressView().tint(.white).scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "location.fill")
-                                }
-                                Text("Enable Location")
-                            }
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 14)
-                            .background(.blue, in: Capsule())
-                        }
-                        .disabled(state.locationLoading)
-
-                        Text("Tap \"Allow While Using\" or \"Always Allow\"")
+                    // Privacy reassurance
+                    HStack(spacing: 10) {
+                        Image(systemName: "hand.raised.fill")
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.3))
+                            .foregroundStyle(NC.teal.opacity(0.6))
+                        Text("Both are optional. You can change these anytime in Settings.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.35))
                     }
+                    .padding(.horizontal, 4)
+                    .padding(.top, 4)
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 20)
@@ -210,14 +243,24 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 2: Connect Data (Bank + Email)
+    // MARK: - Step 2: Connect Data
 
     private var connectDataStep: some View {
         VStack(spacing: 0) {
-            stepHeader(step: 2, total: 2, title: "Connect Your Data", subtitle: "Bank & email — set up one or both")
+            // Header
+            VStack(spacing: 6) {
+                Text("Connect Your Data")
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                Text("Set up one or both — or skip for now")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            .padding(.top, 24)
+            .padding(.bottom, 20)
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
                     // Bank
                     DataSourceCard(
                         icon: "building.columns.fill",
@@ -228,7 +271,7 @@ struct OnboardingView: View {
                         isLoading: state.bankLoading,
                         error: state.bankError,
                         action: { state.connectBank() },
-                        actionLabel: "Connect Bank"
+                        actionLabel: "Connect"
                     )
 
                     // Email
@@ -243,25 +286,25 @@ struct OnboardingView: View {
                         isLoading: state.emailLoading,
                         error: state.emailError,
                         action: { state.connectEmail() },
-                        actionLabel: "Connect Gmail"
+                        actionLabel: "Connect"
                     )
 
-                    // Privacy assurance
+                    // Privacy footnote
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "lock.shield.fill")
                                 .font(.caption)
-                                .foregroundStyle(NC.teal)
-                            Text("Both connections are secure & private")
+                                .foregroundStyle(NC.teal.opacity(0.6))
+                            Text("Secure & Private")
                                 .font(.caption.bold())
-                                .foregroundStyle(.white.opacity(0.5))
+                                .foregroundStyle(.white.opacity(0.45))
                         }
                         PrivacyLine(icon: "lock.fill", text: "Plaid handles bank login — we never see passwords")
                         PrivacyLine(icon: "eye.slash.fill", text: "Gmail is read-only — only receipt emails")
                         PrivacyLine(icon: "iphone", text: "All data stays on this device")
                     }
-                    .padding(16)
-                    .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                    .padding(14)
+                    .background(Color.white.opacity(0.02), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 20)
@@ -269,70 +312,113 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Shared Components
+    // MARK: - Step 3: Ready
 
-    private func stepHeader(step: Int, total: Int, title: String, subtitle: String) -> some View {
-        VStack(spacing: 10) {
-            // Step dots
-            HStack(spacing: 6) {
-                ForEach(1...total, id: \.self) { i in
-                    Capsule()
-                        .fill(i == step ? NC.teal : (i < step ? NC.teal.opacity(0.4) : Color.white.opacity(0.12)))
-                        .frame(width: i == step ? 28 : 8, height: 6)
+    private var readyStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                // Celebration icon
+                ZStack {
+                    Circle()
+                        .fill(NC.teal.opacity(0.1))
+                        .frame(width: 120, height: 120)
+                        .blur(radius: 20)
+
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 72))
+                        .foregroundStyle(NC.teal)
+                        .symbolEffect(.bounce, options: .speed(0.5))
                 }
+
+                VStack(spacing: 8) {
+                    Text("You're All Set!")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+
+                    Text("NodeCompass will start learning your patterns and building your life dashboard.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
+                // Summary of what was connected
+                VStack(spacing: 10) {
+                    if state.locationConnected {
+                        ReadyCheckRow(icon: "location.fill", color: .blue, text: "Location tracking active")
+                    }
+                    if state.healthConnected {
+                        ReadyCheckRow(icon: "heart.fill", color: .pink, text: "Apple Health connected")
+                    }
+                    if state.bankConnected {
+                        ReadyCheckRow(icon: "building.columns.fill", color: .blue, text: "Bank account linked")
+                    }
+                    if state.emailConnected {
+                        ReadyCheckRow(icon: "envelope.fill", color: .purple, text: state.connectedEmail ?? "Gmail connected")
+                    }
+                    if !state.locationConnected && !state.healthConnected && !state.bankConnected && !state.emailConnected {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.3))
+                            Text("You can connect data sources anytime from the You tab")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.35))
+                        }
+                    }
+                }
+                .padding(.top, 8)
             }
 
-            Text(title)
-                .font(.title3.bold())
-                .foregroundStyle(.white)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.45))
+            Spacer()
         }
-        .padding(.top, 20)
-        .padding(.bottom, 16)
     }
 
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             HStack(spacing: 12) {
-                if currentStep > 0 {
+                // Back button (steps 1-2 only, not on welcome or ready)
+                if currentStep > 0 && currentStep < totalSteps - 1 {
                     Button {
                         withAnimation(.spring(response: 0.35)) { currentStep -= 1 }
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.subheadline.bold())
                             .foregroundStyle(.white.opacity(0.5))
-                            .frame(width: 50, height: 52)
-                            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                            .frame(width: 50, height: 54)
+                            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }
 
+                // Main CTA
                 Button { handleNext() } label: {
                     Text(nextLabel)
                         .font(.headline)
-                        .foregroundStyle(canProceed ? .white : .white.opacity(0.3))
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 17)
                         .background(
-                            canProceed
-                                ? AnyShapeStyle(LinearGradient(colors: [NC.teal, NC.teal.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
-                                : AnyShapeStyle(Color.white.opacity(0.06))
+                            LinearGradient(
+                                colors: [NC.teal, NC.teal.opacity(0.75)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: NC.cardRadius))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: NC.teal.opacity(0.3), radius: 12, y: 4)
                 }
-                .disabled(!canProceed)
             }
 
-            // Skip (only on data step)
-            if currentStep == 2 {
+            // Skip option (steps 1 and 2 only)
+            if currentStep == 1 || currentStep == 2 {
                 Button {
-                    completeOnboarding()
+                    withAnimation(.spring(response: 0.35)) { currentStep += 1 }
                 } label: {
-                    Text("Skip — set up later")
+                    Text("Skip for now")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.25))
                 }
@@ -342,19 +428,11 @@ struct OnboardingView: View {
 
     private var nextLabel: String {
         switch currentStep {
-        case 0: return "Let's Set Up"
-        case 1: return state.locationConnected ? "Next" : "Enable Location to Continue"
-        case 2: return "Get Started"
+        case 0: return "Get Started"
+        case 1: return "Continue"
+        case 2: return "Continue"
+        case 3: return "Open NodeCompass"
         default: return "Next"
-        }
-    }
-
-    private var canProceed: Bool {
-        switch currentStep {
-        case 0: return true
-        case 1: return state.locationConnected
-        case 2: return true
-        default: return true
         }
     }
 
@@ -371,79 +449,113 @@ struct OnboardingView: View {
             UserDefaults.standard.set(true, forKey: "locationTrackingEnabled")
             LocationCollector.shared.startTracking()
         }
+        if state.healthConnected {
+            UserDefaults.standard.set(true, forKey: "healthKitAuthorized")
+            Task { await HealthCollector.shared.collectAndStore() }
+        }
         UserDefaults.standard.set(true, forKey: "onboardingComplete")
         withAnimation(.easeInOut(duration: 0.3)) { isComplete = true }
     }
 }
 
-// MARK: - Reusable Components
+// MARK: - Permission Card
 
-private struct PillarRow: View {
-    let icon: String; let color: Color; let title: String; let desc: String
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-                .frame(width: 36)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.subheadline.bold()).foregroundStyle(.white)
-                Text(desc).font(.caption).foregroundStyle(.white.opacity(0.45))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-    }
-}
+private struct PermissionCard: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let subtitle: String
+    let detail: String
+    let isGranted: Bool
+    let isDenied: Bool
+    let isLoading: Bool
+    let action: () -> Void
 
-private struct PrivacyLine: View {
-    let icon: String; let text: String
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon).font(.caption)
-                .foregroundStyle(NC.teal.opacity(0.6)).frame(width: 18)
-            Text(text).font(.caption).foregroundStyle(.white.opacity(0.5))
-        }
-    }
-}
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                // Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isGranted ? .green.opacity(0.12) : color.opacity(0.08))
+                        .frame(width: 46, height: 46)
+                    Image(systemName: isGranted ? "checkmark" : icon)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(isGranted ? .green : color)
+                }
 
-private struct InfoCard: View {
-    let icon: String; let color: Color; let title: String; let bullets: [(String, String)]
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: icon).font(.callout).foregroundStyle(color)
-                Text(title).font(.subheadline.bold()).foregroundStyle(.white)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(bullets, id: \.1) { ic, text in
-                    HStack(spacing: 10) {
-                        Image(systemName: ic).font(.caption).foregroundStyle(color.opacity(0.6)).frame(width: 18)
-                        Text(text).font(.caption).foregroundStyle(.white.opacity(0.6))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+
+                Spacer()
+
+                if isGranted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.green)
+                } else if isLoading {
+                    ProgressView()
+                        .tint(color)
+                        .scaleEffect(0.8)
+                } else if isDenied {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        Text("Settings")
+                            .font(.caption.bold())
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.orange.opacity(0.12), in: Capsule())
+                    }
+                } else {
+                    Button(action: action) {
+                        Text("Enable")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(color, in: Capsule())
                     }
                 }
             }
+
+            // Detail text
+            if !isGranted {
+                HStack(spacing: 8) {
+                    Image(systemName: isDenied ? "exclamationmark.circle" : "info.circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isDenied ? .orange.opacity(0.6) : .white.opacity(0.25))
+                    Text(isDenied ? "Permission denied — tap Settings to enable" : detail)
+                        .font(.caption2)
+                        .foregroundStyle(isDenied ? .orange.opacity(0.7) : .white.opacity(0.3))
+                }
+                .padding(.top, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 60)
+            }
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: NC.cardRadius))
-        .overlay(RoundedRectangle(cornerRadius: NC.cardRadius).stroke(color.opacity(0.1), lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(isGranted ? 0.04 : 0.025))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isGranted ? Color.green.opacity(0.15) : Color.white.opacity(0.04), lineWidth: 1)
+                )
+        )
     }
 }
 
-private struct DoneBadge: View {
-    let text: String
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            Text(text).font(.subheadline.bold()).foregroundStyle(.green)
-        }
-        .padding(.vertical, 12).padding(.horizontal, 20)
-        .background(.green.opacity(0.1), in: Capsule())
-    }
-}
+// MARK: - Data Source Card
 
 private struct DataSourceCard: View {
     let icon: String; let color: Color; let title: String; let subtitle: String
@@ -451,20 +563,23 @@ private struct DataSourceCard: View {
     let action: () -> Void; let actionLabel: String
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
             HStack(spacing: 14) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: NC.iconRadius)
-                        .fill(isConnected ? color.opacity(0.15) : Color.white.opacity(0.05))
-                        .frame(width: 44, height: 44)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isConnected ? .green.opacity(0.12) : color.opacity(0.08))
+                        .frame(width: 46, height: 46)
                     Image(systemName: isConnected ? "checkmark" : icon)
                         .font(.subheadline.bold())
                         .foregroundStyle(isConnected ? .green : color)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.subheadline.bold()).foregroundStyle(.white)
-                    Text(subtitle).font(.caption)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.caption)
                         .foregroundStyle(isConnected ? .green.opacity(0.8) : .white.opacity(0.4))
                         .lineLimit(1)
                 }
@@ -473,6 +588,7 @@ private struct DataSourceCard: View {
 
                 if isConnected {
                     Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
                         .foregroundStyle(.green)
                 } else if isLoading {
                     ProgressView().tint(color).scaleEffect(0.8)
@@ -481,7 +597,7 @@ private struct DataSourceCard: View {
                         Text(actionLabel)
                             .font(.caption.bold())
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
+                            .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .background(color, in: Capsule())
                     }
@@ -489,21 +605,86 @@ private struct DataSourceCard: View {
             }
 
             if let error {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.circle")
+                        .font(.system(size: 10))
+                    Text(error)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 10)
+                .padding(.leading, 60)
             }
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: NC.cardRadius)
-                .fill(Color.white.opacity(isConnected ? 0.05 : 0.03))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(isConnected ? 0.04 : 0.025))
                 .overlay(
-                    RoundedRectangle(cornerRadius: NC.cardRadius)
-                        .stroke(isConnected ? Color.green.opacity(0.2) : Color.white.opacity(0.06), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isConnected ? Color.green.opacity(0.15) : Color.white.opacity(0.04), lineWidth: 1)
                 )
         )
+    }
+}
+
+// MARK: - Reusable Components
+
+private struct PillarRow: View {
+    let icon: String; let color: Color; let title: String; let desc: String
+    let delay: Double; let appeared: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(color)
+                .frame(width: 36)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.subheadline.bold()).foregroundStyle(.white)
+                Text(desc).font(.caption).foregroundStyle(.white.opacity(0.4))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .opacity(appeared ? 1 : 0)
+        .offset(x: appeared ? 0 : 20)
+        .animation(.spring(response: 0.5).delay(delay), value: appeared)
+    }
+}
+
+private struct PrivacyLine: View {
+    let icon: String; let text: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.caption)
+                .foregroundStyle(NC.teal.opacity(0.5)).frame(width: 18)
+            Text(text).font(.caption).foregroundStyle(.white.opacity(0.4))
+        }
+    }
+}
+
+private struct ReadyCheckRow: View {
+    let icon: String; let color: Color; let text: String
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.1), in: Circle())
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.7))
+            Spacer()
+            Image(systemName: "checkmark")
+                .font(.caption2.bold())
+                .foregroundStyle(.green)
+        }
+        .padding(.horizontal, 32)
     }
 }
 
@@ -513,6 +694,10 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var locationConnected = false
     @Published var locationLoading = false
     @Published var locationDenied = false
+
+    @Published var healthConnected = false
+    @Published var healthLoading = false
+    @Published var healthDenied = false
 
     @Published var bankConnected = false
     @Published var bankLoading = false
@@ -525,6 +710,7 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private var linkHandler: Handler?
     private let locationManager = CLLocationManager()
+    private let healthStore = HKHealthStore()
 
     override init() {
         super.init()
@@ -533,6 +719,19 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
         let locStatus = locationManager.authorizationStatus
         locationConnected = (locStatus == .authorizedAlways || locStatus == .authorizedWhenInUse)
         locationDenied = (locStatus == .denied || locStatus == .restricted)
+
+        // Check HealthKit
+        if HKHealthStore.isHealthDataAvailable() {
+            let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
+            let status = healthStore.authorizationStatus(for: stepType)
+            healthConnected = (status == .sharingAuthorized)
+            healthDenied = (status == .sharingDenied)
+        }
+
+        // Check if HealthKit was previously authorized
+        if UserDefaults.standard.bool(forKey: "healthKitAuthorized") {
+            healthConnected = true
+        }
 
         Task {
             let accounts = (try? await PlaidService.shared.getConnectedAccounts()) ?? []
@@ -572,6 +771,36 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
 
+    // MARK: - Health
+
+    func enableHealth() {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            healthDenied = true
+            return
+        }
+        healthLoading = true
+
+        let readTypes: Set<HKObjectType> = [
+            HKQuantityType.quantityType(forIdentifier: .stepCount)!,
+            HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!,
+            HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)!,
+            HKObjectType.workoutType()
+        ]
+
+        healthStore.requestAuthorization(toShare: nil, read: readTypes) { [weak self] success, error in
+            DispatchQueue.main.async {
+                self?.healthConnected = success
+                self?.healthDenied = !success
+                self?.healthLoading = false
+                if success {
+                    UserDefaults.standard.set(true, forKey: "healthKitAuthorized")
+                }
+            }
+        }
+    }
+
     // MARK: - Bank
 
     func connectBank() {
@@ -583,7 +812,7 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
                 let online = await plaid.isServerReachable()
                 if !online {
                     await MainActor.run {
-                        bankError = "Server offline — set up later in Integrations"
+                        bankError = "Server offline — set up later in Settings"
                         bankLoading = false
                     }
                     return
@@ -599,7 +828,7 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
                                 for txn in synced where !txn.pending { TransactionStore.shared.addFromBank(txn) }
                                 self.bankConnected = true; self.bankLoading = false
                             } catch {
-                                self.bankError = "Sync failed: \(error.localizedDescription)"
+                                self.bankError = "Sync failed — try again later"
                                 self.bankLoading = false
                             }
                         }
@@ -640,7 +869,7 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
             } catch {
                 await MainActor.run {
                     if (error as NSError).code != GIDSignInError.canceled.rawValue {
-                        emailError = "Sign-in failed: \(error.localizedDescription)"
+                        emailError = "Sign-in failed — try again"
                     }
                     emailLoading = false
                 }

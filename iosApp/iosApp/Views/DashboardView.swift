@@ -1609,16 +1609,22 @@ private struct QuickActionButton: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundStyle(color)
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.1))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(color)
+                }
                 Text(label)
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(color.opacity(0.06), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
         }
         .buttonStyle(.plain)
     }
