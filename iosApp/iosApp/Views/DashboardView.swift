@@ -153,6 +153,8 @@ struct DashboardView: View {
                 HealthHeroCard(
                     steps: vm.dailySteps,
                     sleepHours: vm.sleepHours,
+                    activeCalories: vm.activeCalories,
+                    restingHR: vm.restingHR,
                     streak: vm.workoutStreak,
                     workoutsPerWeek: vm.workoutsPerWeek
                 )
@@ -222,7 +224,7 @@ struct DashboardView: View {
 
     private var healthFeed: some View {
         VStack(spacing: 14) {
-            if vm.dailySteps == 0 && vm.sleepHours == 0 && vm.workoutStreak == 0 {
+            if vm.dailySteps == 0 && vm.sleepHours == 0 && vm.workoutStreak == 0 && vm.activeCalories == 0 {
                 FeedEmptyState(
                     icon: "heart.fill",
                     color: .pink,
@@ -232,8 +234,10 @@ struct DashboardView: View {
             } else {
                 // Stats grid
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    HealthStatCard(icon: "shoeprints.fill", label: "Avg Steps", value: formatSteps(vm.dailySteps), color: .green)
-                    HealthStatCard(icon: "moon.zzz.fill", label: "Avg Sleep", value: vm.sleepHours > 0 ? String(format: "%.1fh", vm.sleepHours) : "--", color: .indigo)
+                    HealthStatCard(icon: "shoeprints.fill", label: "Steps Today", value: formatSteps(vm.dailySteps), color: .green)
+                    HealthStatCard(icon: "bolt.fill", label: "Active Cal", value: vm.activeCalories > 0 ? "\(vm.activeCalories)" : "--", color: .orange)
+                    HealthStatCard(icon: "moon.zzz.fill", label: "Last Sleep", value: vm.sleepHours > 0 ? String(format: "%.1fh", vm.sleepHours) : "--", color: .indigo)
+                    HealthStatCard(icon: "heart.fill", label: "Resting HR", value: vm.restingHR > 0 ? "\(vm.restingHR) bpm" : "--", color: .red)
                     HealthStatCard(icon: "flame.fill", label: "Streak", value: vm.workoutStreak > 0 ? "\(vm.workoutStreak) days" : "--", color: .orange)
                     HealthStatCard(icon: "figure.run", label: "Workouts", value: vm.workoutsPerWeek > 0 ? String(format: "%.0f/wk", vm.workoutsPerWeek) : "--", color: .pink)
                 }
@@ -532,8 +536,14 @@ private struct WealthHeroCard: View {
 private struct HealthHeroCard: View {
     let steps: Int
     let sleepHours: Double
+    let activeCalories: Int
+    let restingHR: Int
     let streak: Int
     let workoutsPerWeek: Double
+
+    private var hasData: Bool {
+        steps > 0 || sleepHours > 0 || activeCalories > 0 || restingHR > 0
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -543,43 +553,52 @@ private struct HealthHeroCard: View {
                 .foregroundStyle(.white.opacity(0.6))
                 .tracking(1.5)
 
-            if steps > 0 || sleepHours > 0 {
+            if hasData {
+                // Top row: steps + calories (big numbers)
                 HStack(spacing: 24) {
                     if steps > 0 {
-                        VStack(spacing: 2) {
-                            Image(systemName: "shoeprints.fill")
-                                .font(.title3)
-                            Text(steps >= 1000 ? String(format: "%.1fk", Double(steps)/1000) : "\(steps)")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                            Text("steps")
-                                .font(.caption2)
-                                .opacity(0.7)
-                        }
+                        healthStat(icon: "shoeprints.fill",
+                                   value: steps >= 1000 ? String(format: "%.1fk", Double(steps)/1000) : "\(steps)",
+                                   label: "steps")
+                    }
+                    if activeCalories > 0 {
+                        healthStat(icon: "bolt.fill",
+                                   value: activeCalories >= 1000 ? String(format: "%.1fk", Double(activeCalories)/1000) : "\(activeCalories)",
+                                   label: "kcal")
                     }
                     if sleepHours > 0 {
-                        VStack(spacing: 2) {
-                            Image(systemName: "moon.zzz.fill")
-                                .font(.title3)
-                            Text(String(format: "%.1f", sleepHours))
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                            Text("hrs sleep")
-                                .font(.caption2)
-                                .opacity(0.7)
-                        }
-                    }
-                    if streak > 0 {
-                        VStack(spacing: 2) {
-                            Image(systemName: "flame.fill")
-                                .font(.title3)
-                            Text("\(streak)")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                            Text("day streak")
-                                .font(.caption2)
-                                .opacity(0.7)
-                        }
+                        healthStat(icon: "moon.zzz.fill",
+                                   value: String(format: "%.1f", sleepHours),
+                                   label: "hrs sleep")
                     }
                 }
-                .foregroundStyle(.white)
+
+                // Bottom row: HR + streak (smaller)
+                if restingHR > 0 || streak > 0 {
+                    HStack(spacing: 20) {
+                        if restingHR > 0 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "heart.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.red.opacity(0.8))
+                                Text("\(restingHR) bpm")
+                                    .font(.caption.bold())
+                            }
+                            .foregroundStyle(.white.opacity(0.7))
+                        }
+                        if streak > 0 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "flame.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange.opacity(0.8))
+                                Text("\(streak)-day streak")
+                                    .font(.caption.bold())
+                            }
+                            .foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
+                    .padding(.top, 2)
+                }
             } else {
                 VStack(spacing: 6) {
                     Image(systemName: "heart.fill")
@@ -600,6 +619,19 @@ private struct HealthHeroCard: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: NC.heroRadius, style: .continuous))
         .shadow(color: Color.pink.opacity(0.2), radius: 12, y: 6)
+    }
+
+    private func healthStat(icon: String, value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.title3)
+            Text(value)
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+            Text(label)
+                .font(.caption2)
+                .opacity(0.7)
+        }
+        .foregroundStyle(.white)
     }
 }
 
