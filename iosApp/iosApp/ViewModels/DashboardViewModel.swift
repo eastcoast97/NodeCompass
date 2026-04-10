@@ -43,6 +43,9 @@ class DashboardViewModel: ObservableObject {
     @Published var lifeScore: LifeScoreEngine.DailyScore?
     @Published var goalProgress: [GoalProgress] = []
 
+    // Mood
+    @Published var todayMood: MoodStore.MoodLevel?
+
     @Published var isEmpty: Bool = true
 
     private let store = TransactionStore.shared
@@ -92,6 +95,9 @@ class DashboardViewModel: ObservableObject {
             // Life Score & Goals
             lifeScore = await LifeScoreEngine.shared.calculateToday()
             goalProgress = await GoalStore.shared.progressForAll()
+
+            // Mood
+            todayMood = await MoodStore.shared.todaysMood()?.mood
         }
 
         // Orders (email source — aggregated across all Gmail accounts)

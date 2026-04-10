@@ -40,6 +40,8 @@ struct NodeCompassApp: App {
         }
     }
 
+    @State private var colorScheme = NC.preferredColorScheme
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -70,6 +72,10 @@ struct NodeCompassApp: App {
             .onOpenURL { url in
                 // Handle Google Sign-In callback
                 GIDSignIn.sharedInstance.handle(url)
+            }
+            .preferredColorScheme(colorScheme)
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("themeChanged"))) { _ in
+                colorScheme = NC.preferredColorScheme
             }
         }
     }

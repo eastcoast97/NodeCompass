@@ -54,6 +54,11 @@ struct DashboardView: View {
     @State private var showDigest = false
     @State private var showAchievements = false
     @State private var showWhatIf = false
+    @State private var showMood = false
+    @State private var showCoach = false
+    @State private var showWrapped = false
+    @State private var showHeatmap = false
+    @State private var showComparison = false
     @State private var pendingEntryToComplete: FoodStore.FoodLogEntry?
     @State private var nudges: [NudgeEngine.Nudge] = []
     @ObservedObject private var profileStore = PersonalInfoStore.shared
@@ -79,7 +84,12 @@ struct DashboardView: View {
                         .padding(.top, 8)
                     }
 
-                    // Quick Actions (Digest, Achievements, What If)
+                    // Mood quick check-in
+                    moodQuickRow
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+
+                    // Quick Actions
                     quickActionsRow
                         .padding(.horizontal)
                         .padding(.top, 8)
@@ -157,6 +167,21 @@ struct DashboardView: View {
         .sheet(isPresented: $showWhatIf) {
             WhatIfView()
         }
+        .sheet(isPresented: $showMood) {
+            MoodCheckInView()
+        }
+        .sheet(isPresented: $showCoach) {
+            LifeCoachView()
+        }
+        .sheet(isPresented: $showWrapped) {
+            MonthlyWrappedView()
+        }
+        .sheet(isPresented: $showHeatmap) {
+            LocationHeatmapView()
+        }
+        .sheet(isPresented: $showComparison) {
+            SmartComparisonView()
+        }
         .sheet(item: $pendingEntryToComplete) { entry in
             QuickFoodLogSheet(pendingEntry: entry)
                 .presentationDetents([.medium, .large])
@@ -165,21 +190,83 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: - Mood Quick Row
+
+    @ViewBuilder
+    private var moodQuickRow: some View {
+        if vm.todayMood == nil {
+            Button { showMood = true } label: {
+                HStack(spacing: 12) {
+                    Text("How are you feeling?")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    HStack(spacing: 6) {
+                        ForEach(MoodStore.MoodLevel.allCases, id: \.rawValue) { mood in
+                            Text(mood.emoji)
+                                .font(.title3)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+                .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
+            }
+            .buttonStyle(.plain)
+        } else if let mood = vm.todayMood {
+            Button { showMood = true } label: {
+                HStack(spacing: 10) {
+                    Text(mood.emoji)
+                        .font(.title2)
+                    Text("Feeling \(mood.label.lowercased())")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Update")
+                        .font(.caption.bold())
+                        .foregroundStyle(NC.teal)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+                .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: - Quick Actions
 
     private var quickActionsRow: some View {
-        HStack(spacing: 10) {
-            QuickActionButton(icon: "doc.text.fill", label: "Digest", color: NC.teal) {
-                showDigest = true
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                QuickActionButton(icon: "face.smiling.inverse", label: "Mood", color: .purple) {
+                    Haptic.light(); showMood = true
+                }
+                QuickActionButton(icon: "brain.head.profile", label: "Coach", color: NC.teal) {
+                    Haptic.light(); showCoach = true
+                }
+                QuickActionButton(icon: "trophy.fill", label: "Badges", color: .orange) {
+                    Haptic.light(); showAchievements = true
+                }
+                QuickActionButton(icon: "target", label: "Goals", color: .pink) {
+                    Haptic.light(); showGoals = true
+                }
             }
-            QuickActionButton(icon: "trophy.fill", label: "Badges", color: .orange) {
-                showAchievements = true
-            }
-            QuickActionButton(icon: "wand.and.stars", label: "What If", color: .blue) {
-                showWhatIf = true
-            }
-            QuickActionButton(icon: "target", label: "Goals", color: .pink) {
-                showGoals = true
+            HStack(spacing: 10) {
+                QuickActionButton(icon: "chart.bar.xaxis", label: "Compare", color: .blue) {
+                    Haptic.light(); showComparison = true
+                }
+                QuickActionButton(icon: "doc.text.fill", label: "Digest", color: NC.teal) {
+                    Haptic.light(); showDigest = true
+                }
+                QuickActionButton(icon: "sparkles", label: "Wrapped", color: .indigo) {
+                    Haptic.light(); showWrapped = true
+                }
+                QuickActionButton(icon: "wand.and.stars", label: "What If", color: .green) {
+                    Haptic.light(); showWhatIf = true
+                }
             }
         }
     }

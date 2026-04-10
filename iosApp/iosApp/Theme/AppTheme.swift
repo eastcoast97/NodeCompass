@@ -69,6 +69,27 @@ enum NC {
         "\(currencyIcon).circle.fill"
     }
 
+    // MARK: - Theme
+
+    /// User's preferred color scheme. nil = system default.
+    static var preferredColorScheme: ColorScheme? {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: "preferredColorScheme") else { return nil }
+            switch raw {
+            case "dark": return .dark
+            case "light": return .light
+            default: return nil
+            }
+        }
+        set {
+            switch newValue {
+            case .dark: UserDefaults.standard.set("dark", forKey: "preferredColorScheme")
+            case .light: UserDefaults.standard.set("light", forKey: "preferredColorScheme")
+            default: UserDefaults.standard.removeObject(forKey: "preferredColorScheme")
+            }
+        }
+    }
+
     // MARK: - Category Colors (vibrant, accessible palette)
 
     static let categoryColors: [String: Color] = [

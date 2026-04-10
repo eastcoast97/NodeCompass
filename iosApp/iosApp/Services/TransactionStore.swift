@@ -267,6 +267,12 @@ class TransactionStore: ObservableObject {
 
     // MARK: - Computed Properties for Dashboard
 
+    var totalSpendToday: Double {
+        transactions
+            .filter { $0.type.uppercased() == "DEBIT" && Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + $1.amount }
+    }
+
     var totalSpendThisMonth: Double {
         let calendar = Calendar.current
         let now = Date()

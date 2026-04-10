@@ -17,6 +17,10 @@ struct YouTabView: View {
     @State private var showLocationSetup = false
     @State private var showClearConfirm = false
     @State private var isRecategorizing = false
+    @State private var showHeatmap = false
+    @State private var showCoach = false
+    @State private var showWrapped = false
+    @State private var selectedTheme: String = UserDefaults.standard.string(forKey: "preferredColorScheme") ?? "system"
 
     var body: some View {
         NavigationStack {
@@ -24,6 +28,12 @@ struct YouTabView: View {
                 VStack(spacing: 24) {
                     // MARK: - Integrations
                     integrationsSection
+
+                    // MARK: - Explore
+                    exploreSection
+
+                    // MARK: - Appearance
+                    appearanceSection
 
                     // MARK: - Privacy
                     privacySection
@@ -209,6 +219,128 @@ struct YouTabView: View {
     }
 
     // MARK: - Privacy Section
+
+    // MARK: - Explore Section
+
+    private var exploreSection: some View {
+        VStack(spacing: 0) {
+            sectionHeader(icon: "sparkles", title: "Explore")
+
+            VStack(spacing: 0) {
+                Button { showHeatmap = true } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "map.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                            .frame(width: NC.iconSize, height: NC.iconSize)
+                            .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Location Heatmap").font(.subheadline).foregroundStyle(.primary)
+                            Text("See where you spend time and money").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .padding(NC.hPad)
+                }
+
+                Divider().padding(.leading, NC.dividerIndent)
+
+                Button { showCoach = true } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.subheadline)
+                            .foregroundStyle(NC.teal)
+                            .frame(width: NC.iconSize, height: NC.iconSize)
+                            .background(NC.teal.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AI Life Coach").font(.subheadline).foregroundStyle(.primary)
+                            Text("Ask about your life patterns").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .padding(NC.hPad)
+                }
+
+                Divider().padding(.leading, NC.dividerIndent)
+
+                Button { showWrapped = true } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "sparkles")
+                            .font(.subheadline)
+                            .foregroundStyle(.indigo)
+                            .frame(width: NC.iconSize, height: NC.iconSize)
+                            .background(.indigo.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Monthly Wrapped").font(.subheadline).foregroundStyle(.primary)
+                            Text("Your month in review").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .padding(NC.hPad)
+                }
+            }
+            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        }
+        .sheet(isPresented: $showHeatmap) { LocationHeatmapView() }
+        .sheet(isPresented: $showCoach) { LifeCoachView() }
+        .sheet(isPresented: $showWrapped) { MonthlyWrappedView() }
+    }
+
+    // MARK: - Appearance Section
+
+    private var appearanceSection: some View {
+        VStack(spacing: 0) {
+            sectionHeader(icon: "paintbrush.fill", title: "Appearance")
+
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    ForEach(["system", "light", "dark"], id: \.self) { theme in
+                        Button {
+                            Haptic.selection()
+                            selectedTheme = theme
+                            switch theme {
+                            case "dark": NC.preferredColorScheme = .dark
+                            case "light": NC.preferredColorScheme = .light
+                            default: NC.preferredColorScheme = nil
+                            }
+                            NotificationCenter.default.post(name: NSNotification.Name("themeChanged"), object: nil)
+                        } label: {
+                            VStack(spacing: 6) {
+                                Image(systemName: themeIcon(theme))
+                                    .font(.title3)
+                                    .foregroundStyle(selectedTheme == theme ? NC.teal : .secondary)
+                                Text(theme.capitalized)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(selectedTheme == theme ? NC.teal : .secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                selectedTheme == theme
+                                    ? NC.teal.opacity(0.08)
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: NC.iconRadius)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(NC.hPad)
+            }
+            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        }
+    }
+
+    private func themeIcon(_ theme: String) -> String {
+        switch theme {
+        case "dark": return "moon.fill"
+        case "light": return "sun.max.fill"
+        default: return "circle.lefthalf.filled"
+        }
+    }
 
     private var privacySection: some View {
         VStack(spacing: 0) {
