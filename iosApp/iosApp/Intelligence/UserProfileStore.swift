@@ -51,7 +51,6 @@ actor UserProfileStore {
             let data = try encoder.encode(profile)
             try data.write(to: fileURL, options: .atomicWrite)
         } catch {
-            print("[UserProfileStore] Save failed: \(error)")
         }
     }
 
@@ -63,7 +62,6 @@ actor UserProfileStore {
             let data = try Data(contentsOf: url)
             return try decoder.decode(UserProfile.self, from: data)
         } catch {
-            print("[UserProfileStore] Load failed: \(error)")
             return nil
         }
     }

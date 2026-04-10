@@ -49,7 +49,6 @@ class PlaceResolver {
 
             return resolved
         } catch {
-            print("[PlaceResolver] Geocode error: \(error.localizedDescription)")
             return nil
         }
     }

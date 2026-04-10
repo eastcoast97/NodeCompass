@@ -97,7 +97,6 @@ class TransactionStore: ObservableObject {
         }
 
         if !indicesToRemove.isEmpty {
-            print("[TransactionStore] Removing \(indicesToRemove.count) duplicate email transactions")
             for idx in indicesToRemove.reversed() {
                 transactions.remove(at: idx)
             }
@@ -368,7 +367,6 @@ class TransactionStore: ObservableObject {
             let data = try encoder.encode(transactions)
             try data.write(to: fileURL, options: .atomicWrite)
         } catch {
-            print("[TransactionStore] Save failed: \(error)")
         }
     }
 
@@ -378,7 +376,6 @@ class TransactionStore: ObservableObject {
             let data = try Data(contentsOf: fileURL)
             transactions = try decoder.decode([StoredTransaction].self, from: data)
         } catch {
-            print("[TransactionStore] Load failed: \(error)")
             transactions = []
         }
     }

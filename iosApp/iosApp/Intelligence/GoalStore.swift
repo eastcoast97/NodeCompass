@@ -26,7 +26,7 @@ enum GoalType: String, Codable, CaseIterable {
 
     var icon: String {
         switch self {
-        case .spending: return "indianrupeesign.circle.fill"
+        case .spending: return NC.currencyIconCircle
         case .steps: return "shoeprints.fill"
         case .sleep: return "moon.zzz.fill"
         case .workout: return "figure.run"

@@ -44,7 +44,6 @@ struct TransactionBridge {
         Task {
             await EventStore.shared.appendBatch(events)
             let count = await EventStore.shared.totalCount
-            print("[TransactionBridge] Migrated \(events.count) transactions → \(count) total events")
         }
     }
 }

@@ -140,7 +140,6 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
 
             let added = await EventStore.shared.append(lifeEvent)
             if added {
-                print("[Location] Visit recorded: \(place?.name ?? "Unknown") (\(place?.category ?? "?")) at \(lat), \(lon)")
 
                 // Update profile with this location
                 await updateFrequentLocations(lat: lat, lon: lon, place: place, arrivalDate: visit.arrivalDate)
@@ -206,7 +205,6 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                 lastQuickVisitKey = gridKey
 
                 if isQuickVisit {
-                    print("[Location] Quick visit: \(place?.name ?? "Unknown") (\(category))")
 
                     // Update profile with this location
                     await updateFrequentLocations(
@@ -225,14 +223,12 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                         )
                     }
                 } else {
-                    print("[Location] Movement detected near: \(place?.name ?? "Unknown") (\(category))")
                 }
             }
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("[Location] Error: \(error.localizedDescription)")
     }
 
     // MARK: - Profile Update

@@ -77,7 +77,7 @@ struct OnboardingView: View {
 
                 // Pillars — structured card
                 VStack(spacing: 0) {
-                    PillarRow(icon: "indianrupeesign.circle.fill", color: NC.teal,
+                    PillarRow(icon: NC.currencyIconCircle, color: NC.teal,
                               title: "Wealth", desc: "Every transaction, subscription & charge — tracked automatically")
                     Divider().padding(.leading, 56).opacity(0.3)
                     PillarRow(icon: "heart.circle.fill", color: .pink,

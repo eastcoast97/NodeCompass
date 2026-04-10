@@ -53,6 +53,22 @@ enum NC {
         "\(currencySymbol)\(Int(amount).formatted())"
     }
 
+    /// SF Symbol name for the user's currency (used in icons).
+    static var currencyIcon: String {
+        switch currencySymbol {
+        case "₹": return "indianrupeesign"
+        case "€": return "eurosign"
+        case "£": return "sterlingsign"
+        case "¥": return "yensign"
+        default: return "dollarsign"
+        }
+    }
+
+    /// SF Symbol with circle fill variant for currency.
+    static var currencyIconCircle: String {
+        "\(currencyIcon).circle.fill"
+    }
+
     // MARK: - Category Colors (vibrant, accessible palette)
 
     static let categoryColors: [String: Color] = [

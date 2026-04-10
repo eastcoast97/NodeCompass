@@ -231,7 +231,6 @@ class EmailSyncViewModel: ObservableObject {
         } catch let error as GmailServiceError {
             handleSyncError(error, for: email, at: idx)
         } catch {
-            print("[EmailSync] Incremental sync error for \(email): \(error)")
         }
     }
 
@@ -280,9 +279,6 @@ class EmailSyncViewModel: ObservableObject {
                 restaurantInfo = FoodDeliveryParser.extractRestaurant(
                     from: emailMsg.body, sender: emailMsg.senderEmail
                 )
-                if let info = restaurantInfo {
-                    print("[EmailSync] Extracted restaurant: \(info.name), address: \(info.address ?? "none")")
-                }
             }
 
             let bodyForLLM = isFoodDelivery ? emailMsg.body : SwiftEmailReceiptParser.stripHtmlPublic(emailMsg.body)
@@ -297,7 +293,6 @@ class EmailSyncViewModel: ObservableObject {
                         fromEmailHTML: emailMsg.body, sender: emailMsg.senderEmail
                     ) {
                         lineItems = scraped
-                        print("[EmailSync]   → SCRAPER found \(scraped.count) items from order link")
                     }
                 }
 

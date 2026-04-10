@@ -13,7 +13,7 @@ class PlaidService {
     private var serverBaseURL: String {
         get {
             UserDefaults.standard.string(forKey: "plaid_server_url")
-                ?? "http://10.0.0.177:8080"  // Your Mac's local IP — NOT localhost
+                ?? "https://server-sage-ten.vercel.app"  // Vercel deployment
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "plaid_server_url")

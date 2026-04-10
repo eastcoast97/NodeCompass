@@ -123,10 +123,8 @@ class HealthCollector: NSObject, DataCollector, ObservableObject {
             let events = try await collect()
             if !events.isEmpty {
                 await EventStore.shared.appendBatch(events)
-                print("[Health] Collected \(events.count) events")
             }
         } catch {
-            print("[Health] Collection error: \(error.localizedDescription)")
         }
     }
 

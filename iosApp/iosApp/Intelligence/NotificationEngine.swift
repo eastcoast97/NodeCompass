@@ -86,7 +86,6 @@ actor NotificationEngine {
             ))
             saveLog()
         } catch {
-            print("[NotificationEngine] Failed to deliver: \(error)")
         }
     }
 

@@ -116,7 +116,6 @@ actor EventStore {
             let data = try encoder.encode(events)
             try data.write(to: fileURL, options: .atomicWrite)
         } catch {
-            print("[EventStore] Save failed: \(error)")
         }
     }
 
@@ -127,7 +126,6 @@ actor EventStore {
             events = try decoder.decode([LifeEvent].self, from: data)
             deduplicationKeys = Set(events.map { $0.deduplicationKey })
         } catch {
-            print("[EventStore] Load failed: \(error)")
             events = []
         }
     }

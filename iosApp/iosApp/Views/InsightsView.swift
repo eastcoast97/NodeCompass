@@ -310,7 +310,7 @@ enum InsightFilter: String, CaseIterable {
         switch self {
         case .all: return "sparkles"
         case .alerts: return "exclamationmark.triangle.fill"
-        case .wealth: return "indianrupeesign"
+        case .wealth: return NC.currencyIcon
         case .food: return "fork.knife"
         case .health: return "heart.fill"
         }

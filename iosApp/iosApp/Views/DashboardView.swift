@@ -22,7 +22,7 @@ enum DashboardPage: Int, CaseIterable {
 
     var icon: String {
         switch self {
-        case .wealth: return "indianrupeesign"
+        case .wealth: return NC.currencyIcon
         case .health: return "heart.fill"
         case .food: return "fork.knife"
         case .insights: return "lightbulb.fill"
@@ -50,7 +50,13 @@ struct DashboardView: View {
     @State private var activePage: DashboardPage = .wealth
     @State private var showFoodLog = false
     @State private var showGoals = false
+    @State private var showProfile = false
+    @State private var showDigest = false
+    @State private var showAchievements = false
+    @State private var showWhatIf = false
     @State private var pendingEntryToComplete: FoodStore.FoodLogEntry?
+    @State private var nudges: [NudgeEngine.Nudge] = []
+    @ObservedObject private var profileStore = PersonalInfoStore.shared
 
     var body: some View {
         NavigationStack {
@@ -73,6 +79,18 @@ struct DashboardView: View {
                         .padding(.top, 8)
                     }
 
+                    // Quick Actions (Digest, Achievements, What If)
+                    quickActionsRow
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+
+                    // Smart Nudges
+                    if !nudges.isEmpty {
+                        nudgesSection
+                            .padding(.horizontal)
+                            .padding(.top, 4)
+                    }
+
                     // Swipeable Hero Cards
                     heroSection
 
@@ -85,11 +103,34 @@ struct DashboardView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("NodeCompass")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showProfile = true } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(profileStore.info.isComplete ? .secondary : NC.teal)
+                            if profileStore.info.pendingCount > 0 {
+                                Text("\(profileStore.info.pendingCount)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 16, height: 16)
+                                    .background(.red, in: Circle())
+                                    .offset(x: 6, y: -6)
+                            }
+                        }
+                    }
+                }
+            }
             .refreshable { vm.load() }
         }
         .onAppear {
             vm.load()
             authAlert.check()
+            Task {
+                nudges = await NudgeEngine.shared.generateNudges()
+                _ = await AchievementEngine.shared.evaluateToday()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             authAlert.check()
@@ -98,15 +139,113 @@ struct DashboardView: View {
         .sheet(isPresented: $showGoals) {
             GoalsView()
         }
+        .sheet(isPresented: $showProfile) {
+            ProfileSetupSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         .sheet(isPresented: $showFoodLog) {
             FoodLogView()
                 .onDisappear { vm.load() }
+        }
+        .sheet(isPresented: $showDigest) {
+            WeeklyDigestView()
+        }
+        .sheet(isPresented: $showAchievements) {
+            AchievementsView()
+        }
+        .sheet(isPresented: $showWhatIf) {
+            WhatIfView()
         }
         .sheet(item: $pendingEntryToComplete) { entry in
             QuickFoodLogSheet(pendingEntry: entry)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .onDisappear { vm.load() }
+        }
+    }
+
+    // MARK: - Quick Actions
+
+    private var quickActionsRow: some View {
+        HStack(spacing: 10) {
+            QuickActionButton(icon: "doc.text.fill", label: "Digest", color: NC.teal) {
+                showDigest = true
+            }
+            QuickActionButton(icon: "trophy.fill", label: "Badges", color: .orange) {
+                showAchievements = true
+            }
+            QuickActionButton(icon: "wand.and.stars", label: "What If", color: .blue) {
+                showWhatIf = true
+            }
+            QuickActionButton(icon: "target", label: "Goals", color: .pink) {
+                showGoals = true
+            }
+        }
+    }
+
+    // MARK: - Nudges Section
+
+    private var nudgesSection: some View {
+        VStack(spacing: 8) {
+            ForEach(nudges) { nudge in
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
+                            .fill(nudgeColor(nudge.color).opacity(0.12))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: nudge.icon)
+                            .font(.caption)
+                            .foregroundStyle(nudgeColor(nudge.color))
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(nudge.title)
+                            .font(.caption.bold())
+                        Text(nudge.body)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+
+                    if let action = nudge.actionLabel {
+                        Button {
+                            handleNudgeAction(nudge)
+                        } label: {
+                            Text(action)
+                                .font(.caption2.bold())
+                                .foregroundStyle(nudgeColor(nudge.color))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(nudgeColor(nudge.color).opacity(0.1), in: Capsule())
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(nudgeColor(nudge.color).opacity(0.04), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+            }
+        }
+    }
+
+    private func nudgeColor(_ color: String) -> Color {
+        switch color {
+        case "teal": return NC.teal
+        case "pink": return .pink
+        case "food": return NC.food
+        case "spend": return NC.spend
+        case "warning": return NC.warning
+        default: return .blue
+        }
+    }
+
+    private func handleNudgeAction(_ nudge: NudgeEngine.Nudge) {
+        switch nudge.type {
+        case .mealReminder: showFoodLog = true
+        case .weeklyReview: showDigest = true
+        default: break
         }
     }
 
@@ -1456,6 +1595,32 @@ private struct EmptyStateView: View {
             }
         }
         .padding(32)
+    }
+}
+
+// MARK: - Quick Action Button
+
+private struct QuickActionButton: View {
+    let icon: String
+    let label: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(color.opacity(0.06), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        }
+        .buttonStyle(.plain)
     }
 }
 

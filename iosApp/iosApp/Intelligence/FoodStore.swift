@@ -36,7 +36,6 @@ actor FoodStore {
         }
 
         if !indicesToRemove.isEmpty {
-            print("[FoodStore] Removing \(indicesToRemove.count) duplicate entries")
             for idx in indicesToRemove.reversed() {
                 entries.remove(at: idx)
             }
@@ -452,7 +451,6 @@ actor FoodStore {
             let data = try encoder.encode(entries)
             try data.write(to: fileURL, options: .atomicWrite)
         } catch {
-            print("[FoodStore] Save failed: \(error)")
         }
     }
 
@@ -462,7 +460,6 @@ actor FoodStore {
             let data = try Data(contentsOf: fileURL)
             entries = try decoder.decode([FoodLogEntry].self, from: data)
         } catch {
-            print("[FoodStore] Load failed: \(error)")
         }
     }
 }

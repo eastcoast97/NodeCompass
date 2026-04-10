@@ -41,7 +41,6 @@ enum BackgroundScheduler {
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
-            print("[BackgroundScheduler] Refresh schedule failed: \(error)")
         }
     }
 
@@ -53,7 +52,6 @@ enum BackgroundScheduler {
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
-            print("[BackgroundScheduler] Processing schedule failed: \(error)")
         }
     }
 

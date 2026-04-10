@@ -109,7 +109,7 @@ struct BankConnectionView: View {
 
             if !viewModel.isServerOnline {
                 VStack(spacing: 8) {
-                    TextField("http://localhost:8080", text: $viewModel.serverURLInput)
+                    TextField("https://your-server.vercel.app", text: $viewModel.serverURLInput)
                         .textContentType(.URL)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -131,7 +131,7 @@ struct BankConnectionView: View {
                     }
                     .disabled(viewModel.serverURLInput.isEmpty)
 
-                    Text("Run: cd server && npm start")
+                    Text("Enter your server URL and tap Connect")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -367,11 +367,11 @@ class BankConnectionViewModel: ObservableObject {
     var serverURL: String { plaid.currentServerURL }
 
     init() {
-        // Fix stale localhost URLs cached from previous builds
+        // Fix stale localhost/IP URLs from development
         let currentURL = plaid.currentServerURL
-        if currentURL.contains("localhost") {
-            plaid.setServerURL("http://10.0.0.177:8080")
-            serverURLInput = "http://10.0.0.177:8080"
+        if currentURL.contains("localhost") || currentURL.contains("10.0.0.") {
+            plaid.setServerURL("https://server-sage-ten.vercel.app")
+            serverURLInput = "https://server-sage-ten.vercel.app"
         } else {
             serverURLInput = currentURL
         }
@@ -420,7 +420,7 @@ class BankConnectionViewModel: ObservableObject {
                 await loadAccounts()
                 connectBank()
             } else {
-                errorMessage = "Server is offline. Enter your Mac's IP address above (e.g. http://10.0.0.177:8080) and tap Connect first."
+                errorMessage = "Server is offline. Check your server URL and try again."
                 isConnecting = false
             }
         }

@@ -294,7 +294,6 @@ actor PatternEngine {
             let data = try encoder.encode(insights)
             try data.write(to: fileURL, options: .atomicWrite)
         } catch {
-            print("[PatternEngine] Save insights failed: \(error)")
         }
     }
 
@@ -304,7 +303,6 @@ actor PatternEngine {
             let data = try Data(contentsOf: fileURL)
             insights = try decoder.decode([Insight].self, from: data)
         } catch {
-            print("[PatternEngine] Load insights failed: \(error)")
             insights = []
         }
     }

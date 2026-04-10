@@ -101,7 +101,6 @@ class GroqService {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 if let httpResponse = response as? HTTPURLResponse {
-                    print("[Groq] API error: HTTP \(httpResponse.statusCode)")
                 }
                 return nil
             }
@@ -113,7 +112,6 @@ class GroqService {
 
             return content
         } catch {
-            print("[Groq] Request error: \(error)")
             return nil
         }
     }

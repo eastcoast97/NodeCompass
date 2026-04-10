@@ -113,6 +113,15 @@ private struct GoalCard: View {
                         .font(.caption.bold())
                         .foregroundStyle(item.isOnTrack ? .green : .orange)
                 }
+
+                // Delete button
+                Button { showRemove = true } label: {
+                    Image(systemName: "trash")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color(.systemGray5), in: Circle())
+                }
             }
 
             // Progress bar

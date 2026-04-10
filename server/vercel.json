@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/**/*.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/health", "dest": "/api/health.js" },
+    { "src": "/api/create_link_token", "dest": "/api/create_link_token.js" },
+    { "src": "/api/exchange_token", "dest": "/api/exchange_token.js" },
+    { "src": "/api/plaid_webhook", "dest": "/api/plaid_webhook.js" },
+    { "src": "/api/transactions", "dest": "/api/transactions.js" },
+    { "src": "/api/accounts", "dest": "/api/accounts.js" },
+    { "src": "/api/updates", "dest": "/api/updates.js" }
+  ]
+}
