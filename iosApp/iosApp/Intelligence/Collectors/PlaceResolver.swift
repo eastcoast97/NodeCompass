@@ -17,6 +17,18 @@ class PlaceResolver {
         let category: String      // "restaurant", "gym", "office", "home", "store", "medical", "park", "transit"
         let address: String?
         let placeId: String?      // Google Place ID for future lookups
+        var details: PlaceDetails? // Rich data from Place Details API
+    }
+
+    /// Rich restaurant/business details from Google Places Details API.
+    struct PlaceDetails {
+        let priceLevel: Int?          // 0=free, 1=cheap, 2=moderate, 3=expensive, 4=very expensive
+        let rating: Double?           // 1.0 - 5.0
+        let editorialSummary: String? // Google's description: "Popular spot for biryani and kebabs"
+        let cuisineTypes: [String]    // Specific types: ["indian_restaurant", "biryani_restaurant"]
+        let popularItems: [String]    // Extracted from reviews: ["butter chicken", "naan", "mango lassi"]
+        let website: String?          // Restaurant website (may have menu)
+        let openNow: Bool?
     }
 
     private init() {}
@@ -221,6 +233,163 @@ class PlaceResolver {
         }
 
         return "other"
+    }
+
+    // MARK: - Google Place Details API
+
+    /// Fetch rich details (price, reviews, menu hints) for a place we already resolved.
+    /// Returns nil if no API key or the request fails.
+    func fetchPlaceDetails(placeId: String) async -> PlaceDetails? {
+        guard let apiKey = getApiKey() else { return nil }
+
+        let fields = "price_level,rating,editorial_summary,types,reviews,website,opening_hours"
+        let urlString = "https://maps.googleapis.com/maps/api/place/details/json"
+            + "?place_id=\(placeId)"
+            + "&fields=\(fields)"
+            + "&reviews_sort=newest"
+            + "&key=\(apiKey)"
+
+        guard let url = URL(string: urlString) else { return nil }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else { return nil }
+
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let status = json["status"] as? String,
+                  status == "OK",
+                  let result = json["result"] as? [String: Any] else {
+                return nil
+            }
+
+            let priceLevel = result["price_level"] as? Int
+            let rating = result["rating"] as? Double
+            let types = result["types"] as? [String] ?? []
+            let website = result["website"] as? String
+
+            // Editorial summary
+            let editorialSummary: String?
+            if let summary = result["editorial_summary"] as? [String: Any] {
+                editorialSummary = summary["overview"] as? String
+            } else {
+                editorialSummary = nil
+            }
+
+            // Opening hours
+            let openNow: Bool?
+            if let hours = result["opening_hours"] as? [String: Any] {
+                openNow = hours["open_now"] as? Bool
+            } else {
+                openNow = nil
+            }
+
+            // Extract popular food items from reviews
+            let popularItems = extractFoodItemsFromReviews(result: result)
+
+            // Filter to cuisine-specific types
+            let cuisineTypes = types.filter { type in
+                type.contains("restaurant") || type.contains("cafe") ||
+                type.contains("bakery") || type.contains("coffee") ||
+                type.contains("food") || type.contains("bar") ||
+                type.contains("meal") || type.contains("pizza") ||
+                type.contains("indian") || type.contains("chinese") ||
+                type.contains("italian") || type.contains("mexican") ||
+                type.contains("japanese") || type.contains("thai") ||
+                type.contains("american") || type.contains("asian") ||
+                type.contains("vegetarian") || type.contains("vegan") ||
+                type.contains("seafood") || type.contains("steak") ||
+                type.contains("ice_cream") || type.contains("dessert")
+            }
+
+            return PlaceDetails(
+                priceLevel: priceLevel,
+                rating: rating,
+                editorialSummary: editorialSummary,
+                cuisineTypes: cuisineTypes,
+                popularItems: popularItems,
+                website: website,
+                openNow: openNow
+            )
+        } catch {
+            print("[PlaceResolver] Place Details error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Extract commonly mentioned food items from Google Place reviews.
+    private func extractFoodItemsFromReviews(result: [String: Any]) -> [String] {
+        guard let reviews = result["reviews"] as? [[String: Any]] else { return [] }
+
+        // Common food/drink keywords to look for in review text
+        let foodPatterns: [String: String] = [
+            // Drinks
+            "coffee": "Coffee", "latte": "Latte", "cappuccino": "Cappuccino",
+            "espresso": "Espresso", "mocha": "Mocha", "frappe": "Frappe",
+            "chai": "Chai", "tea": "Tea", "smoothie": "Smoothie",
+            "juice": "Juice", "milkshake": "Milkshake",
+            // Indian
+            "biryani": "Biryani", "butter chicken": "Butter Chicken",
+            "naan": "Naan", "tandoori": "Tandoori", "paneer": "Paneer",
+            "dosa": "Dosa", "idli": "Idli", "vada": "Vada",
+            "samosa": "Samosa", "dal": "Dal", "tikka": "Tikka Masala",
+            "paratha": "Paratha", "chole": "Chole Bhature",
+            "rasam": "Rasam", "thali": "Thali", "kebab": "Kebab",
+            "gulab jamun": "Gulab Jamun", "lassi": "Lassi",
+            "pav bhaji": "Pav Bhaji", "pulao": "Pulao",
+            // Western
+            "burger": "Burger", "pizza": "Pizza", "pasta": "Pasta",
+            "sandwich": "Sandwich", "salad": "Salad", "steak": "Steak",
+            "fries": "Fries", "wrap": "Wrap", "taco": "Taco",
+            "burrito": "Burrito", "wings": "Wings", "nuggets": "Nuggets",
+            "waffle": "Waffle", "pancake": "Pancake", "croissant": "Croissant",
+            "bagel": "Bagel", "muffin": "Muffin", "donut": "Donut",
+            // Asian
+            "sushi": "Sushi", "ramen": "Ramen", "noodle": "Noodles",
+            "fried rice": "Fried Rice", "dim sum": "Dim Sum",
+            "pad thai": "Pad Thai", "pho": "Pho", "spring roll": "Spring Rolls",
+            // Desserts
+            "ice cream": "Ice Cream", "gelato": "Gelato", "cake": "Cake",
+            "brownie": "Brownie", "cookie": "Cookie", "pie": "Pie"
+        ]
+
+        // Count mentions across all reviews
+        var itemCounts: [String: Int] = [:]
+
+        for review in reviews {
+            guard let text = review["text"] as? String else { continue }
+            let lower = text.lowercased()
+
+            for (pattern, displayName) in foodPatterns {
+                if lower.contains(pattern) {
+                    itemCounts[displayName, default: 0] += 1
+                }
+            }
+        }
+
+        // Return top items mentioned 2+ times, sorted by frequency
+        return itemCounts
+            .filter { $0.value >= 2 }
+            .sorted { $0.value > $1.value }
+            .prefix(5)
+            .map { $0.key }
+    }
+
+    /// Resolve place and enrich with details in one call.
+    /// Used by FoodAutoDetector for maximum intelligence.
+    func resolveWithDetails(latitude: Double, longitude: Double) async -> ResolvedPlace? {
+        guard var place = await resolve(latitude: latitude, longitude: longitude) else { return nil }
+
+        // If we have a placeId and it's a food-related category, fetch rich details
+        if let placeId = place.placeId,
+           ["restaurant", "cafe", "food", "bar"].contains(where: { place.category.contains($0) }) {
+            place.details = await fetchPlaceDetails(placeId: placeId)
+        }
+
+        return place
     }
 
     // MARK: - Apple CLGeocoder Fallback

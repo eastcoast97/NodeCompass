@@ -264,6 +264,7 @@ enum FoodSource: String, Codable {
     case emailOrder         // parsed from Uber Eats / DoorDash / Swiggy email
     case locationPrompt     // GPS detected restaurant, user confirmed
     case stapleSuggestion   // app suggested a learned staple, user confirmed
+    case autoDetected       // smart auto-logged from transaction + location fusion
 }
 
 // MARK: - Event Metadata (enrichment added by PatternEngine)

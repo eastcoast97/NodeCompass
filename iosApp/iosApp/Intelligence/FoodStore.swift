@@ -305,6 +305,47 @@ actor FoodStore {
             .map { $0.key.capitalized }
     }
 
+    // MARK: - Smart Habit Intelligence
+
+    /// Average spend at a merchant (for group order detection).
+    func averageSpendAt(_ merchant: String) -> Double? {
+        let lower = merchant.lowercased()
+        let matching = entries.filter {
+            $0.locationName?.lowercased() == lower && $0.totalSpent != nil && $0.totalSpent! > 0
+        }
+        guard !matching.isEmpty else { return nil }
+        return matching.compactMap { $0.totalSpent }.reduce(0, +) / Double(matching.count)
+    }
+
+    /// Number of visits to a merchant.
+    func visitCountAt(_ merchant: String) -> Int {
+        let lower = merchant.lowercased()
+        return entries.filter { $0.locationName?.lowercased() == lower }.count
+    }
+
+    /// Top items with calorie data at a merchant — returns (name, calories, frequency).
+    func topItemsWithNutrition(at merchant: String, limit: Int = 3) -> [(name: String, calories: Int?, count: Int)] {
+        let lower = merchant.lowercased()
+        let matching = entries.filter {
+            $0.locationName?.lowercased() == lower && !$0.items.isEmpty
+        }
+        var itemData: [String: (calories: Int?, count: Int)] = [:]
+        for entry in matching {
+            for item in entry.items {
+                let key = item.name.lowercased()
+                let existing = itemData[key]
+                itemData[key] = (
+                    calories: item.caloriesEstimate ?? existing?.calories,
+                    count: (existing?.count ?? 0) + 1
+                )
+            }
+        }
+        return itemData
+            .sorted { $0.value.count > $1.value.count }
+            .prefix(limit)
+            .map { (name: $0.key.capitalized, calories: $0.value.calories, count: $0.value.count) }
+    }
+
     // MARK: - Bulk Order Detection
 
     /// Given line items from an email order, detect which are likely bulk (qty > 1)

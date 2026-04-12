@@ -1374,6 +1374,7 @@ private struct FoodEntryRow: View {
         case .emailOrder: return "Order"
         case .locationPrompt: return "GPS"
         case .stapleSuggestion: return "Staple"
+        case .autoDetected: return "Smart"
         }
     }
 }

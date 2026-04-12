@@ -124,8 +124,8 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
         guard visit.arrivalDate != .distantPast else { return }
 
         Task {
-            // Resolve the place name and category
-            let place = await placeResolver.resolve(latitude: lat, longitude: lon)
+            // Resolve the place name, category, and rich details (menu/reviews from Google)
+            let place = await placeResolver.resolveWithDetails(latitude: lat, longitude: lon)
 
             let locationEvent = LocationEvent(
                 latitude: lat,
@@ -157,7 +157,8 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                     FoodAutoDetector.checkLocationVisit(
                         placeName: placeName,
                         category: place?.category,
-                        arrivalDate: visit.arrivalDate
+                        arrivalDate: visit.arrivalDate,
+                        placeDetails: place?.details
                     )
                 }
             }
@@ -181,7 +182,7 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
         guard gridKey != lastQuickVisitKey else { return }
 
         Task {
-            let place = await placeResolver.resolve(
+            let place = await placeResolver.resolveWithDetails(
                 latitude: location.coordinate.latitude,
                 longitude: location.coordinate.longitude
             )
@@ -228,7 +229,8 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                         FoodAutoDetector.checkLocationVisit(
                             placeName: placeName,
                             category: place?.category,
-                            arrivalDate: location.timestamp
+                            arrivalDate: location.timestamp,
+                            placeDetails: place?.details
                         )
                     }
                 }

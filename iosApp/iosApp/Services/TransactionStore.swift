@@ -374,6 +374,29 @@ class TransactionStore: ObservableObject {
         }
     }
 
+    // MARK: - Manual Transaction (for voice input / cash expenses)
+
+    func addManualTransaction(amount: Double, merchant: String, category: String?, type: String = "DEBIT") {
+        let txn = StoredTransaction(
+            id: UUID().uuidString,
+            amount: amount,
+            currencySymbol: NC.currencySymbol,
+            currencyCode: Locale.current.currency?.identifier ?? "USD",
+            merchant: merchant,
+            category: category ?? categorize(merchant: merchant),
+            description: nil,
+            lineItems: nil,
+            type: type,
+            source: "MANUAL",
+            account: nil,
+            rawText: nil,
+            date: Date(),
+            createdAt: Date(),
+            categorizedByAI: false
+        )
+        addTransaction(txn)
+    }
+
     // MARK: - Private
 
     private func addTransaction(_ txn: StoredTransaction) {
