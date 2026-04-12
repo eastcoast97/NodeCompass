@@ -85,7 +85,7 @@ object TransactionPatterns {
                 val merchant = match.groupValues[1].trim()
                 // Clean up: remove trailing "on", "Ref", etc.
                 val cleaned = merchant
-                    .replace(Regex("""(?i)\s+(?:on|ref|upi|imps|neft).*$"""), "")
+                    .replace(Regex("""(?i)\s+(?:on\s+\d|ref\b|upi\b|imps\b|neft\b).*$"""), "")
                     .trim()
                 if (cleaned.length >= 2) return cleaned
             }

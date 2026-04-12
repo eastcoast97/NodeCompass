@@ -28,7 +28,7 @@ class GhostSubscriptionDetector(
                     merchant = charge.merchant,
                     amount = charge.amount,
                     currency = charge.currency,
-                    frequency = estimateFrequency(charge.occurrenceCount),
+                    frequency = estimateFrequency(charge),
                     occurrences = charge.occurrenceCount,
                     lastChargedMillis = charge.lastSeenMillis
                 )
@@ -36,12 +36,29 @@ class GhostSubscriptionDetector(
             .sortedByDescending { it.occurrences }
     }
 
-    private fun estimateFrequency(occurrenceCount: Long): SubscriptionFrequency {
-        // Simple heuristic based on count
-        // In a real implementation, we'd analyze the actual timestamps
+    /**
+     * Estimate frequency by analyzing the actual time interval between
+     * first and last charge (replaces the old count-based heuristic that
+     * incorrectly claimed 12+ occurrences = WEEKLY even when they spanned
+     * a full year).
+     */
+    private fun estimateFrequency(charge: RecurringCharge): SubscriptionFrequency {
+        if (charge.occurrenceCount < 2 ||
+            charge.firstSeenMillis <= 0 ||
+            charge.lastSeenMillis <= 0) {
+            return SubscriptionFrequency.UNKNOWN
+        }
+
+        val spanMillis = charge.lastSeenMillis - charge.firstSeenMillis
+        if (spanMillis <= 0) return SubscriptionFrequency.UNKNOWN
+
+        val avgIntervalDays = (spanMillis / (charge.occurrenceCount - 1)) / (1000.0 * 60 * 60 * 24)
+
         return when {
-            occurrenceCount >= 12 -> SubscriptionFrequency.WEEKLY
-            occurrenceCount >= 3 -> SubscriptionFrequency.MONTHLY
+            avgIntervalDays < 10 -> SubscriptionFrequency.WEEKLY
+            avgIntervalDays < 45 -> SubscriptionFrequency.MONTHLY
+            avgIntervalDays < 120 -> SubscriptionFrequency.QUARTERLY
+            avgIntervalDays < 400 -> SubscriptionFrequency.YEARLY
             else -> SubscriptionFrequency.UNKNOWN
         }
     }

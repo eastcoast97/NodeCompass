@@ -170,13 +170,26 @@ struct FoodAutoDetector {
 
         Task {
             let recentEntries = await FoodStore.shared.entries(since: arrivalDate.addingTimeInterval(-7200))
+
+            // Skip if there's already a recent email order for delivery
             let hasRecentEmailLog = recentEntries.contains { $0.source == .emailOrder }
             guard !hasRecentEmailLog else { return }
+
+            // Skip if there's already a recent location-based entry for the
+            // same place — previously there was no check, so CLVisit and
+            // significantLocationChange could both create entries for the
+            // same physical visit.
+            let hasRecentLocationLog = recentEntries.contains { entry in
+                entry.source == .locationPrompt &&
+                entry.locationName?.lowercased() == placeName.lowercased()
+            }
+            guard !hasRecentLocationLog else { return }
 
             let entry = await FoodStore.shared.createFromLocationVisit(
                 restaurantName: placeName,
                 arrivalDate: arrivalDate
             )
+            await FoodStore.shared.addEntry(entry)
 
             sendFoodNotification(
                 title: "Ate at \(placeName)?",

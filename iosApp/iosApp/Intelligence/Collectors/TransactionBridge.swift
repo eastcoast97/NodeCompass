@@ -6,7 +6,9 @@ import Foundation
 struct TransactionBridge {
 
     /// Convert a single StoredTransaction into a LifeEvent and append to EventStore.
-    static func bridge(_ txn: StoredTransaction) {
+    /// Awaits the EventStore append to prevent race conditions when bridging
+    /// multiple transactions in rapid succession.
+    static func bridge(_ txn: StoredTransaction) async {
         let event = LifeEvent(
             timestamp: txn.date,
             source: txn.source == "BANK" ? .bank : .email,
@@ -19,14 +21,20 @@ struct TransactionBridge {
             ))
         )
 
+        await EventStore.shared.append(event)
+    }
+
+    /// Fire-and-forget version for callers that don't need to await.
+    /// Use `bridge(_:) async` when ordering matters.
+    static func bridgeInBackground(_ txn: StoredTransaction) {
         Task {
-            await EventStore.shared.append(event)
+            await bridge(txn)
         }
     }
 
     /// One-time migration: bridge all existing transactions into events.
     /// Called on app launch if EventStore has no transaction events yet.
-    static func migrateExistingTransactions(from transactions: [StoredTransaction]) {
+    static func migrateExistingTransactions(from transactions: [StoredTransaction]) async {
         let events = transactions.map { txn in
             LifeEvent(
                 timestamp: txn.date,
@@ -41,9 +49,8 @@ struct TransactionBridge {
             )
         }
 
-        Task {
-            await EventStore.shared.appendBatch(events)
-            let count = await EventStore.shared.totalCount
-        }
+        await EventStore.shared.appendBatch(events)
+        let count = await EventStore.shared.totalCount
+        print("[TransactionBridge] Migrated \(events.count) transactions → \(count) total events")
     }
 }

@@ -54,10 +54,15 @@ object HtmlExtractor {
             text = text.replace(entity, replacement, ignoreCase = true)
         }
 
-        // Decode numeric entities (&#123;)
+        // Decode numeric entities (&#123;) with a BMP range check so that
+        // oversized values like &#999999; don't wrap/overflow when cast to Char.
         text = numericEntityRegex.replace(text) { match ->
             val code = match.groupValues[1].toIntOrNull()
-            if (code != null) code.toChar().toString() else match.value
+            if (code != null && code in 0..0xFFFF) {
+                code.toChar().toString()
+            } else {
+                match.value
+            }
         }
 
         // Clean up whitespace

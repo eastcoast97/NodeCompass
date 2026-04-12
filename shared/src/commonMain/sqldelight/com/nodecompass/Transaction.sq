@@ -18,6 +18,11 @@ CREATE INDEX idx_transaction_category ON TransactionEntity(category);
 CREATE INDEX idx_transaction_merchant ON TransactionEntity(merchant);
 CREATE INDEX idx_transaction_source ON TransactionEntity(source);
 
+-- Prevents duplicate rows at the DB level (amount + merchant + timestamp).
+-- The repository's findDuplicate check is best-effort; this UNIQUE index
+-- is the real source of truth and makes INSERT OR IGNORE race-safe.
+CREATE UNIQUE INDEX idx_transaction_dedup ON TransactionEntity(amount, merchant, timestamp);
+
 -- Get all transactions ordered by date
 getAllTransactions:
 SELECT * FROM TransactionEntity ORDER BY timestamp DESC;
@@ -36,9 +41,11 @@ WHERE type = 'DEBIT' AND timestamp >= :startOfMonth AND timestamp < :endOfMonth
 GROUP BY category
 ORDER BY total DESC;
 
--- Detect recurring charges (potential ghost subscriptions)
+-- Detect recurring charges (potential ghost subscriptions).
+-- Returns first_seen/last_seen so downstream can compute real cadence
+-- from actual intervals instead of a count-based heuristic.
 getRecurringCharges:
-SELECT merchant, amount, currency, COUNT(*) AS occurrence_count, MAX(timestamp) AS last_seen
+SELECT merchant, amount, currency, COUNT(*) AS occurrence_count, MAX(timestamp) AS last_seen, MIN(timestamp) AS first_seen
 FROM TransactionEntity
 WHERE type = 'DEBIT'
 GROUP BY merchant, amount, currency
@@ -57,9 +64,9 @@ SELECT * FROM TransactionEntity
 WHERE source = :source
 ORDER BY timestamp DESC;
 
--- Insert a new transaction
+-- Insert a new transaction (ignore on duplicate via the dedup UNIQUE index)
 insertTransaction:
-INSERT INTO TransactionEntity (amount, currency, merchant, category, timestamp, type, source, raw_text, account, is_recurring, created_at)
+INSERT OR IGNORE INTO TransactionEntity (amount, currency, merchant, category, timestamp, type, source, raw_text, account, is_recurring, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Delete a transaction

@@ -69,10 +69,29 @@ class GenericReceiptParser : VendorParser {
     }
 
     private fun extractMerchantFromEmail(email: String): String {
-        // Extract domain name and clean it up
-        // "noreply@netflix.com" -> "Netflix"
-        // "orders@shop.company.com" -> "Company"
-        val domain = email.substringAfter("@").substringBefore(".")
-        return domain.replaceFirstChar { it.uppercase() }
+        // Safely extract a brand name from a sender address.
+        // Handles malformed emails (missing @, missing .) and skips generic
+        // subdomains like "noreply", "mail", "support" so that
+        // "orders@shop.company.com" becomes "Shop" (or "Company") instead of "Orders".
+        if ("@" !in email) return "Unknown"
+
+        val domainPart = email.substringAfter("@")
+        if ("." !in domainPart) return "Unknown"
+
+        val name = domainPart.substringBefore(".")
+        val genericPrefixes = setOf("mail", "email", "noreply", "no-reply", "info", "support", "com")
+
+        if (name.length < 2 || name.lowercase() in genericPrefixes) {
+            val remaining = domainPart.substringAfter(".")
+            if ("." in remaining) {
+                val secondName = remaining.substringBefore(".")
+                if (secondName.length >= 2) {
+                    return secondName.replaceFirstChar { it.uppercase() }
+                }
+            }
+            return name.replaceFirstChar { it.uppercase() }
+        }
+
+        return name.replaceFirstChar { it.uppercase() }
     }
 }

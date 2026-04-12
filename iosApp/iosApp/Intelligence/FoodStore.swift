@@ -389,13 +389,18 @@ actor FoodStore {
     // MARK: - Helpers
 
     func inferMealType(from date: Date) -> String {
+        // Minute-level granularity avoids the old hard-hour boundary where
+        // 11:00 was lunch but 10:59 was breakfast.
         let hour = Calendar.current.component(.hour, from: date)
-        switch hour {
-        case 5..<11: return "breakfast"
-        case 11..<15: return "lunch"
-        case 15..<17: return "snack"
-        case 17..<22: return "dinner"
-        default: return "snack"
+        let minute = Calendar.current.component(.minute, from: date)
+        let timeInMinutes = hour * 60 + minute
+
+        switch timeInMinutes {
+        case 300..<660:   return "breakfast"  // 5:00 - 10:59
+        case 660..<900:   return "lunch"      // 11:00 - 14:59
+        case 900..<1020:  return "snack"      // 15:00 - 16:59
+        case 1020..<1350: return "dinner"     // 17:00 - 22:29
+        default:          return "snack"      // Late night / early morning
         }
     }
 
@@ -457,6 +462,7 @@ actor FoodStore {
             let data = try encoder.encode(entries)
             try data.write(to: fileURL, options: .atomicWrite)
         } catch {
+            print("[FoodStore] Save failed: \(error.localizedDescription)")
         }
     }
 
@@ -466,6 +472,7 @@ actor FoodStore {
             let data = try Data(contentsOf: fileURL)
             entries = try decoder.decode([FoodLogEntry].self, from: data)
         } catch {
+            print("[FoodStore] Load failed: \(error.localizedDescription)")
         }
     }
 }

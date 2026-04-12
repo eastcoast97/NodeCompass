@@ -34,7 +34,7 @@ struct NodeCompassApp: App {
             if eventCount == 0 {
                 let transactions = await MainActor.run { TransactionStore.shared.transactions }
                 if !transactions.isEmpty {
-                    TransactionBridge.migrateExistingTransactions(from: transactions)
+                    await TransactionBridge.migrateExistingTransactions(from: transactions)
                 }
             }
         }

@@ -130,7 +130,7 @@ class TransactionStore: ObservableObject {
             categorizedByAI: plaidTxn.personalFinanceCategory != nil
         )
         addTransaction(txn)
-        TransactionBridge.bridge(txn)
+        TransactionBridge.bridgeInBackground(txn)
 
         // Re-categorize with LLM in background if Plaid didn't provide a category
         if plaidTxn.personalFinanceCategory == nil {
@@ -205,7 +205,7 @@ class TransactionStore: ObservableObject {
             createdAt: Date()
         )
         addTransaction(txn)
-        TransactionBridge.bridge(txn)
+        TransactionBridge.bridgeInBackground(txn)
 
         // Auto-detect food orders from email receipts
         FoodAutoDetector.checkEmailOrder(transaction: txn)
@@ -393,6 +393,7 @@ class TransactionStore: ObservableObject {
             let data = try encoder.encode(transactions)
             try data.write(to: fileURL, options: .atomicWrite)
         } catch {
+            print("[TransactionStore] Save failed: \(error.localizedDescription)")
         }
     }
 
@@ -402,6 +403,7 @@ class TransactionStore: ObservableObject {
             let data = try Data(contentsOf: fileURL)
             transactions = try decoder.decode([StoredTransaction].self, from: data)
         } catch {
+            print("[TransactionStore] Load failed: \(error.localizedDescription)")
             transactions = []
         }
     }

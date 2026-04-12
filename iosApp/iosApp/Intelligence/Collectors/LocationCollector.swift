@@ -20,6 +20,11 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
     /// Track last quick-visit coordinate to avoid duplicates at same spot
     private var lastQuickVisitKey: String?
 
+    /// Track recently notified places to prevent duplicate food notifications
+    /// from both CLVisit and significantLocationChange firing for the same visit.
+    /// Key: grid cell key, Value: timestamp when notification was sent.
+    private var recentlyNotifiedPlaces: [String: Date] = [:]
+
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var isTracking = false
 
@@ -140,12 +145,15 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
 
             let added = await EventStore.shared.append(lifeEvent)
             if added {
-
                 // Update profile with this location
                 await updateFrequentLocations(lat: lat, lon: lon, place: place, arrivalDate: visit.arrivalDate)
 
-                // Check if this is a restaurant — prompt food logging
-                if let placeName = place?.name {
+                // Check if this is a restaurant — prompt food logging.
+                // Guard against duplicate notifications from both CLVisit and
+                // significantLocationChange firing for the same physical visit.
+                let gridKey = "\(Int(lat * Config.Location.gridCellMultiplier))_\(Int(lon * Config.Location.gridCellMultiplier))"
+                if let placeName = place?.name, !wasRecentlyNotified(gridKey: gridKey) {
+                    markAsNotified(gridKey: gridKey)
                     FoodAutoDetector.checkLocationVisit(
                         placeName: placeName,
                         category: place?.category,
@@ -165,11 +173,11 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
         // Throttle: at least 2 minutes between quick-visit checks
         let lastCollection = UserDefaults.standard.double(forKey: lastCollectionKey)
         let now = Date().timeIntervalSince1970
-        guard now - lastCollection > 120 else { return }
+        guard now - lastCollection > Config.Location.quickVisitThrottleSeconds else { return }
         UserDefaults.standard.set(now, forKey: lastCollectionKey)
 
         // De-duplicate: skip if we're still at the same ~50m grid cell
-        let gridKey = "\(Int(location.coordinate.latitude * 200))_\(Int(location.coordinate.longitude * 200))"
+        let gridKey = "\(Int(location.coordinate.latitude * Config.Location.gridCellMultiplier))_\(Int(location.coordinate.longitude * Config.Location.gridCellMultiplier))"
         guard gridKey != lastQuickVisitKey else { return }
 
         Task {
@@ -205,7 +213,6 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                 lastQuickVisitKey = gridKey
 
                 if isQuickVisit {
-
                     // Update profile with this location
                     await updateFrequentLocations(
                         lat: location.coordinate.latitude,
@@ -214,21 +221,42 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                         arrivalDate: location.timestamp
                     )
 
-                    // Check if restaurant — prompt food logging
-                    if let placeName = place?.name {
+                    // Check if restaurant — prompt food logging, guarding
+                    // against duplicates from the CLVisit delegate also firing.
+                    if let placeName = place?.name, !wasRecentlyNotified(gridKey: gridKey) {
+                        markAsNotified(gridKey: gridKey)
                         FoodAutoDetector.checkLocationVisit(
                             placeName: placeName,
                             category: place?.category,
                             arrivalDate: location.timestamp
                         )
                     }
-                } else {
                 }
             }
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("[LocationCollector] Error: \(error.localizedDescription)")
+    }
+
+    // MARK: - Notification Deduplication
+
+    /// Check if a food notification was recently sent for this grid cell.
+    private func wasRecentlyNotified(gridKey: String) -> Bool {
+        pruneExpiredNotifications()
+        return recentlyNotifiedPlaces[gridKey] != nil
+    }
+
+    /// Mark a grid cell as recently notified.
+    private func markAsNotified(gridKey: String) {
+        recentlyNotifiedPlaces[gridKey] = Date()
+    }
+
+    /// Remove expired entries to prevent memory growth.
+    private func pruneExpiredNotifications() {
+        let cutoff = Date().addingTimeInterval(-Config.Location.foodNotificationCooldownSeconds)
+        recentlyNotifiedPlaces = recentlyNotifiedPlaces.filter { $0.value > cutoff }
     }
 
     // MARK: - Profile Update
@@ -237,7 +265,7 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
         var profile = await UserProfileStore.shared.currentProfile()
 
         // Check if this is near an existing frequent location (within 100m)
-        if let index = profile.frequentLocations.firstIndex(where: { $0.distance(to: lat, lon) < 100 }) {
+        if let index = profile.frequentLocations.firstIndex(where: { $0.distance(to: lat, lon) < Config.Location.sameLocationRadiusMeters }) {
             profile.frequentLocations[index].visitCount += 1
             profile.frequentLocations[index].lastVisit = arrivalDate
             if let resolvedType = place?.category {
@@ -260,10 +288,10 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
             )
             profile.frequentLocations.append(newLocation)
 
-            // Keep top 50 locations
-            if profile.frequentLocations.count > 50 {
+            // Keep top N locations
+            if profile.frequentLocations.count > Config.Location.maxFrequentLocations {
                 profile.frequentLocations.sort { $0.visitCount > $1.visitCount }
-                profile.frequentLocations = Array(profile.frequentLocations.prefix(50))
+                profile.frequentLocations = Array(profile.frequentLocations.prefix(Config.Location.maxFrequentLocations))
             }
         }
 

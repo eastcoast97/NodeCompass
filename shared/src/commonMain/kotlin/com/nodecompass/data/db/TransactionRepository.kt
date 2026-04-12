@@ -43,7 +43,8 @@ class TransactionRepository(private val database: NodeCompassDatabase) {
                 amount = row.amount,
                 currency = Currency.fromCodeOrDefault(row.currency),
                 occurrenceCount = row.occurrence_count,
-                lastSeenMillis = row.last_seen ?: 0L
+                lastSeenMillis = row.last_seen ?: 0L,
+                firstSeenMillis = row.first_seen ?: 0L
             )
         }
     }
@@ -66,7 +67,9 @@ class TransactionRepository(private val database: NodeCompassDatabase) {
     }
 
     fun insertTransaction(transaction: Transaction): Boolean {
-        // Check for duplicates first
+        // Check for duplicates first (best-effort check, DB-level UNIQUE
+        // constraint is the real source of truth and prevents the race
+        // between this check and the insert).
         val duplicateCount = queries.findDuplicate(
             amount = transaction.amount,
             merchant = transaction.merchant,
@@ -75,6 +78,8 @@ class TransactionRepository(private val database: NodeCompassDatabase) {
 
         if (duplicateCount > 0) return false
 
+        // Insert uses INSERT OR IGNORE backed by UNIQUE INDEX
+        // (amount, merchant, timestamp) so concurrent inserts are safe.
         queries.insertTransaction(
             amount = transaction.amount,
             currency = transaction.currency.code,
@@ -130,5 +135,6 @@ data class RecurringCharge(
     val amount: Double,
     val currency: Currency,
     val occurrenceCount: Long,
-    val lastSeenMillis: Long
+    val lastSeenMillis: Long,
+    val firstSeenMillis: Long
 )
