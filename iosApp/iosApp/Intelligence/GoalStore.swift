@@ -282,9 +282,13 @@ actor GoalStore {
             )
 
         case .eatingOut:
+            // Case-insensitive category matching against a configurable list
+            // to survive category rename drift (previously broke if categories
+            // were capitalized differently).
+            let foodCategories: Set<String> = ["food & dining", "restaurants", "food", "fast food", "dining"]
             let weekTxns = store.transactions.filter { txn in
                 cal.isDate(txn.date, equalTo: Date(), toGranularity: .weekOfYear) &&
-                (txn.category == "Food & Dining" || txn.category == "Restaurants") &&
+                foodCategories.contains(txn.category.lowercased()) &&
                 txn.type.uppercased() == "DEBIT"
             }.count
             let progress = goal.targetValue > 0 ? Double(weekTxns) / goal.targetValue : 0

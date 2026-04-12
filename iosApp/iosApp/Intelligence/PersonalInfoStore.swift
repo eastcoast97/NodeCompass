@@ -12,13 +12,13 @@ struct PersonalInfo: Codable {
     var weightUnit: WeightUnit
 
     var isComplete: Bool {
-        name != nil && !name!.isEmpty && birthYear != nil && heightCm != nil && weightKg != nil
+        name != nil && !(name?.isEmpty ?? true) && birthYear != nil && heightCm != nil && weightKg != nil
     }
 
     /// Number of fields that are still empty.
     var pendingCount: Int {
         var count = 0
-        if name == nil || name!.isEmpty { count += 1 }
+        if name == nil || (name?.isEmpty ?? true) { count += 1 }
         if birthYear == nil { count += 1 }
         if heightCm == nil { count += 1 }
         if weightKg == nil { count += 1 }
@@ -35,9 +35,9 @@ struct PersonalInfo: Codable {
         switch heightUnit {
         case .cm: return "\(Int(cm)) cm"
         case .ftIn:
-            let totalInches = cm / 2.54
+            let totalInches = cm / Config.Units.cmPerInch
             let feet = Int(totalInches) / 12
-            let inches = Int(totalInches) % 12
+            let inches = Int(totalInches.rounded()) % 12
             return "\(feet)'\(inches)\""
         }
     }
@@ -46,7 +46,7 @@ struct PersonalInfo: Codable {
         guard let kg = weightKg else { return "--" }
         switch weightUnit {
         case .kg: return "\(Int(kg)) kg"
-        case .lbs: return "\(Int(kg * 2.205)) lbs"
+        case .lbs: return "\(Int((kg * Config.Units.lbsPerKg).rounded())) lbs"
         }
     }
 
@@ -66,12 +66,18 @@ struct PersonalInfo: Codable {
     }
 }
 
-/// Persistent store for personal info.
+/// Persistent store for personal info. @MainActor because the backing store
+/// is @Published for SwiftUI binding. HealthKit queries use an internal
+/// serial sync flag to prevent duplicate writes.
+@MainActor
 class PersonalInfoStore: ObservableObject {
     static let shared = PersonalInfoStore()
     private let key = "personal_info"
 
     @Published var info: PersonalInfo
+
+    /// Guard against concurrent syncFromHealthKit calls.
+    private var isSyncingFromHealthKit: Bool = false
 
     private init() {
         if let data = UserDefaults.standard.data(forKey: key),
@@ -83,29 +89,39 @@ class PersonalInfoStore: ObservableObject {
     }
 
     func save() {
-        if let data = try? JSONEncoder().encode(info) {
+        do {
+            let data = try JSONEncoder().encode(info)
             UserDefaults.standard.set(data, forKey: key)
+        } catch {
+            print("[PersonalInfoStore] Save failed: \(error)")
         }
-        objectWillChange.send()
     }
 
     /// Try to pull height and weight from HealthKit if available.
+    /// Reentrancy-safe: a second call while the first is in flight is a no-op.
     func syncFromHealthKit() {
+        guard !isSyncingFromHealthKit else { return }
         guard HKHealthStore.isHealthDataAvailable() else { return }
+        isSyncingFromHealthKit = true
+
         let store = HKHealthStore()
+        let group = DispatchGroup()
+
+        var fetchedHeightCm: Double?
+        var fetchedWeightKg: Double?
 
         // Height
         if let heightType = HKQuantityType.quantityType(forIdentifier: .height) {
+            group.enter()
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
-            let query = HKSampleQuery(sampleType: heightType, predicate: nil, limit: 1, sortDescriptors: [sort]) { [weak self] _, results, _ in
+            let query = HKSampleQuery(sampleType: heightType, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, results, error in
+                defer { group.leave() }
+                if let error = error {
+                    print("[PersonalInfoStore] Height query error: \(error)")
+                    return
+                }
                 if let sample = results?.first as? HKQuantitySample {
-                    let cm = sample.quantity.doubleValue(for: .meterUnit(with: .centi))
-                    DispatchQueue.main.async {
-                        if self?.info.heightCm == nil {
-                            self?.info.heightCm = cm
-                            self?.save()
-                        }
-                    }
+                    fetchedHeightCm = sample.quantity.doubleValue(for: .meterUnit(with: .centi))
                 }
             }
             store.execute(query)
@@ -113,19 +129,37 @@ class PersonalInfoStore: ObservableObject {
 
         // Weight
         if let weightType = HKQuantityType.quantityType(forIdentifier: .bodyMass) {
+            group.enter()
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
-            let query = HKSampleQuery(sampleType: weightType, predicate: nil, limit: 1, sortDescriptors: [sort]) { [weak self] _, results, _ in
+            let query = HKSampleQuery(sampleType: weightType, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, results, error in
+                defer { group.leave() }
+                if let error = error {
+                    print("[PersonalInfoStore] Weight query error: \(error)")
+                    return
+                }
                 if let sample = results?.first as? HKQuantitySample {
-                    let kg = sample.quantity.doubleValue(for: .gramUnit(with: .kilo))
-                    DispatchQueue.main.async {
-                        if self?.info.weightKg == nil {
-                            self?.info.weightKg = kg
-                            self?.save()
-                        }
-                    }
+                    fetchedWeightKg = sample.quantity.doubleValue(for: .gramUnit(with: .kilo))
                 }
             }
             store.execute(query)
+        }
+
+        // When both queries finish, write results on the main actor atomically
+        // and release the sync lock.
+        group.notify(queue: .main) { [weak self] in
+            guard let self = self else { return }
+            Task { @MainActor in
+                if let cm = fetchedHeightCm, self.info.heightCm == nil {
+                    self.info.heightCm = cm
+                }
+                if let kg = fetchedWeightKg, self.info.weightKg == nil {
+                    self.info.weightKg = kg
+                }
+                if fetchedHeightCm != nil || fetchedWeightKg != nil {
+                    self.save()
+                }
+                self.isSyncingFromHealthKit = false
+            }
         }
     }
 }

@@ -116,14 +116,25 @@ actor MonthlyWrappedEngine {
         let homeMeals = allMeals.filter { $0.source != .emailOrder }
         let eatingOut = allMeals.filter { $0.source == .emailOrder }
 
-        // Staple foods
-        var foodCounts: [String: Int] = [:]
+        // Staple foods (case-insensitive grouping so "Chicken" and "chicken" merge)
+        var foodCounts: [String: (display: String, count: Int)] = [:]
         for entry in allMeals {
             for item in entry.items {
-                foodCounts[item.name, default: 0] += 1
+                let key = item.name.lowercased()
+                let existing = foodCounts[key] ?? (display: item.name.capitalized, count: 0)
+                foodCounts[key] = (display: existing.display, count: existing.count + 1)
             }
         }
-        let topStaple = foodCounts.max(by: { $0.value < $1.value })
+        let topStaple = foodCounts.max(by: { $0.value.count < $1.value.count })
+
+        // Average daily calories from actual food log data (was hardcoded to 0).
+        let totalCaloriesMonth = allMeals.reduce(0) { $0 + ($1.totalCaloriesEstimate ?? 0) }
+        let mealDays = Set(allMeals.map { cal.startOfDay(for: $0.timestamp) }).count
+        let avgDailyCalories = mealDays > 0 ? totalCaloriesMonth / mealDays : 0
+
+        // Longest cooking streak: count consecutive days where at least one
+        // home-cooked meal was logged. Was hardcoded to 0.
+        let cookingStreakBest = computeLongestCookingStreak(entries: homeMeals, calendar: cal)
 
         // Life scores
         let scores = await LifeScoreEngine.shared.recentScores(days: daysElapsed)
@@ -192,9 +203,9 @@ actor MonthlyWrappedEngine {
             totalMealsLogged: allMeals.count,
             homeMeals: homeMeals.count,
             eatingOutCount: eatingOut.count,
-            topStapleFood: topStaple?.key,
-            avgDailyCalories: 0,
-            cookingStreakBest: 0,
+            topStapleFood: topStaple?.value.display,
+            avgDailyCalories: avgDailyCalories,
+            cookingStreakBest: cookingStreakBest,
             avgLifeScore: avgScore,
             bestScoreDay: bestScoreDay,
             bestScore: bestScoreEntry?.total ?? 0,
@@ -202,5 +213,28 @@ actor MonthlyWrappedEngine {
             achievementsEarned: thisMonthAchievements.count,
             funFacts: funFacts
         )
+    }
+
+    /// Longest consecutive-days cooking streak in the given entries.
+    /// A "day" counts if at least one entry exists for that day.
+    private func computeLongestCookingStreak(entries: [FoodStore.FoodLogEntry], calendar: Calendar) -> Int {
+        let days = Set(entries.map { calendar.startOfDay(for: $0.timestamp) })
+        guard !days.isEmpty else { return 0 }
+        let sorted = days.sorted()
+
+        var best = 1
+        var current = 1
+        for i in 1..<sorted.count {
+            let prev = sorted[i - 1]
+            let day = sorted[i]
+            if let expectedNext = calendar.date(byAdding: .day, value: 1, to: prev),
+               calendar.isDate(expectedNext, inSameDayAs: day) {
+                current += 1
+                best = max(best, current)
+            } else {
+                current = 1
+            }
+        }
+        return best
     }
 }

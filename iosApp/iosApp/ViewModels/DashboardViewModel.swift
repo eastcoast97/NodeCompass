@@ -145,7 +145,7 @@ class DashboardViewModel: ObservableObject {
             GhostSubscriptionItem(
                 id: "\(ghost.merchant)_\(ghost.amount)", merchant: ghost.merchant,
                 amount: ghost.amount, currencySymbol: ghost.currencySymbol,
-                frequency: "Monthly", occurrences: ghost.occurrences
+                frequency: ghost.frequency, occurrences: ghost.occurrences
             )
         }
     }
@@ -194,5 +194,9 @@ struct GhostSubscriptionItem: Identifiable {
     let frequency: String
     let occurrences: Int
 
-    var formattedAmount: String { "\(currencySymbol)\(String(format: "%.2f", amount))/mo" }
+    var formattedAmount: String { "\(currencySymbol)\(String(format: "%.2f", amount))" }
+
+    /// Amount formatted with cadence suffix derived from actual frequency data,
+    /// not hardcoded. "$9.99 Weekly" / "$14.99 Monthly" / "$99 Yearly"
+    var amountWithFrequency: String { "\(formattedAmount) · \(frequency)" }
 }

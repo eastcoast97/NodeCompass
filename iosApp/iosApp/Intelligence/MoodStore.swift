@@ -225,21 +225,30 @@ actor MoodStore {
             }
         }
 
-        // Spending correlation
+        // Spending correlation — true median (average of two middle values for
+        // even-length arrays, not just the lower midpoint)
         let withSpend = recent.filter { $0.contextSnapshot != nil }
-        if withSpend.count >= 3 {
-            let median = withSpend.map { $0.contextSnapshot?.spentToday ?? 0 }.sorted()
-            let midIdx = median.count / 2
-            let medianSpend = median.isEmpty ? 0 : median[midIdx]
-            let highSpend = withSpend.filter { ($0.contextSnapshot?.spentToday ?? 0) > medianSpend * 1.5 }
+        if withSpend.count >= Config.Mood.minCategoryEntries {
+            let sorted = withSpend.map { $0.contextSnapshot?.spentToday ?? 0 }.sorted()
+            let medianSpend: Double = {
+                guard !sorted.isEmpty else { return 0 }
+                let mid = sorted.count / 2
+                if sorted.count % 2 == 0 {
+                    return (sorted[mid - 1] + sorted[mid]) / 2
+                } else {
+                    return sorted[mid]
+                }
+            }()
+            let highSpend = withSpend.filter { ($0.contextSnapshot?.spentToday ?? 0) > medianSpend * Config.Mood.highSpendMultiplier }
             let lowSpend = withSpend.filter { ($0.contextSnapshot?.spentToday ?? 0) <= medianSpend }
             let highAvg = highSpend.isEmpty ? 0 : Double(highSpend.reduce(0) { $0 + $1.mood.rawValue }) / Double(highSpend.count)
             let lowAvg = lowSpend.isEmpty ? 0 : Double(lowSpend.reduce(0) { $0 + $1.mood.rawValue }) / Double(lowSpend.count)
-            if lowAvg > highAvg + 0.3 {
+            if lowAvg > highAvg + Config.Mood.moderateEffectDelta {
                 correlations.append(MoodCorrelation(
                     factor: "Spending", icon: NC.currencyIcon,
                     insight: "Your mood dips on heavy spending days",
-                    impact: .negative, confidence: min(Double(withSpend.count) / 10, 1.0)
+                    impact: .negative,
+                    confidence: min(Double(withSpend.count) / Config.Mood.maxConfidenceEntries, 1.0)
                 ))
             }
         }

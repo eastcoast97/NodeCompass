@@ -338,7 +338,7 @@ class TransactionStore: ObservableObject {
     }
 
     /// Detect ghost subscriptions: same merchant + similar amount recurring 2+ times.
-    var ghostSubscriptions: [(merchant: String, amount: Double, currencySymbol: String, occurrences: Int)] {
+    var ghostSubscriptions: [(merchant: String, amount: Double, currencySymbol: String, occurrences: Int, frequency: String)] {
         // Group by merchant (lowercased) + rounded amount
         var groups: [String: [StoredTransaction]] = [:]
         for txn in transactions where txn.type.uppercased() == "DEBIT" {
@@ -347,11 +347,31 @@ class TransactionStore: ObservableObject {
         }
 
         return groups.compactMap { _, txns in
-            guard txns.count >= 2 else { return nil }
+            guard txns.count >= Config.Wealth.ghostMinOccurrences else { return nil }
             let first = txns[0]
+            let frequency = estimateGhostFrequency(txns: txns)
             return (merchant: first.merchant, amount: first.amount,
-                    currencySymbol: first.currencySymbol, occurrences: txns.count)
+                    currencySymbol: first.currencySymbol, occurrences: txns.count, frequency: frequency)
         }.sorted { $0.occurrences > $1.occurrences }
+    }
+
+    /// Estimate recurring charge frequency from actual timestamp intervals.
+    /// Replaces the earlier hardcoded "Monthly" that ignored engine output.
+    private func estimateGhostFrequency(txns: [StoredTransaction]) -> String {
+        guard txns.count >= 2 else { return "Recurring" }
+        let sorted = txns.sorted { $0.date < $1.date }
+        let spanSeconds = sorted.last!.date.timeIntervalSince(sorted.first!.date)
+        guard spanSeconds > 0 else { return "Recurring" }
+
+        let avgIntervalDays = spanSeconds / Double(sorted.count - 1) / 86_400
+
+        switch avgIntervalDays {
+        case ..<10:    return "Weekly"
+        case 10..<45:  return "Monthly"
+        case 45..<120: return "Quarterly"
+        case 120..<400: return "Yearly"
+        default:        return "Recurring"
+        }
     }
 
     // MARK: - Private

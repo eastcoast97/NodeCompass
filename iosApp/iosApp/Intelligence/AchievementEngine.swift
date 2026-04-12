@@ -161,10 +161,24 @@ actor AchievementEngine {
 
     // MARK: - Check & Award
 
+    /// Tracks which date we last finished `evaluateToday()`. Guards against
+    /// accidental double-evaluation from concurrent foreground calls, which
+    /// would otherwise double-increment streak counters and lifetime stats.
+    private var lastEvaluatedDateKey: String?
+
     /// Called daily (or on app foreground) to evaluate streaks and award achievements.
+    /// Idempotent for a given day: multiple calls on the same calendar day
+    /// will only update state once.
     func evaluateToday() async -> [Achievement] {
         let cal = Calendar.current
         let todayKey = Self.dateKey(for: Date())
+
+        // Idempotency guard: if we've already evaluated today, just return the
+        // achievements that already exist without re-incrementing anything.
+        if lastEvaluatedDateKey == todayKey {
+            return state.earned.filter { Self.dateKey(for: $0.earnedAt) == todayKey }
+        }
+
         var newAchievements: [Achievement] = []
 
         // Collect today's data
@@ -254,6 +268,7 @@ actor AchievementEngine {
         if streakDays(for: .appUsage) >= 7 { award(.weekStreak, title: "Week Warrior", desc: "Checked in 7 days straight") }
         if streakDays(for: .appUsage) >= 30 { award(.monthStreak, title: "Monthly Master", desc: "30-day check-in streak!") }
 
+        lastEvaluatedDateKey = todayKey
         saveState()
         return newAchievements
     }

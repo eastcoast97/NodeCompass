@@ -123,8 +123,18 @@ actor WeeklyDigestEngine {
         let sleepSamples = healthSamples.filter { $0.metric == "sleepAnalysis" }
         let avgSleep = sleepSamples.isEmpty ? 0 : sleepSamples.reduce(0.0) { $0 + $1.value } / Double(sleepSamples.count)
 
+        // Count workouts per weekday, pick the day with the most workouts.
+        // Previously used `workoutDays.first!` which crashes on empty arrays and
+        // also picked an arbitrary day rather than the actual best.
         let workoutDays = workoutEvents.map { cal.component(.weekday, from: $0.timestamp) }
-        let bestWorkoutDay = workoutDays.isEmpty ? nil : dayNames[(workoutDays.first! - 1) % 7]
+        let bestWorkoutDay: String? = {
+            guard !workoutDays.isEmpty else { return nil }
+            let counts = Dictionary(grouping: workoutDays, by: { $0 }).mapValues { $0.count }
+            guard let topWeekday = counts.max(by: { $0.value < $1.value })?.key else { return nil }
+            let index = (topWeekday - 1) % 7
+            guard index >= 0 && index < dayNames.count else { return nil }
+            return dayNames[index]
+        }()
 
         // --- FOOD ---
         let foodEvents = thisWeekEvents.compactMap { e -> FoodLogEvent? in

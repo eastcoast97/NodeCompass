@@ -8,11 +8,14 @@ struct ProfileSetupSheet: View {
 
     @State private var name: String = ""
     @State private var birthYear: String = ""
-    @State private var heightValue: String = ""
+    @State private var heightValue: String = ""       // cm when in cm mode
+    @State private var heightFeet: String = ""        // ft when in ft/in mode
+    @State private var heightInches: String = ""      // in when in ft/in mode
     @State private var weightValue: String = ""
     @State private var heightUnit: PersonalInfo.HeightUnit = .cm
     @State private var weightUnit: PersonalInfo.WeightUnit = .kg
     @State private var didSyncHealth = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -55,12 +58,33 @@ struct ProfileSetupSheet: View {
 
                         Divider().padding(.leading, NC.dividerIndent)
 
-                        // Height
+                        // Height — split into separate feet/inches fields when imperial
+                        // to avoid the unparseable "5'10\"" placeholder that the old
+                        // single TextField couldn't actually parse.
                         fieldRow(icon: "ruler.fill", color: .orange, label: "Height") {
                             HStack(spacing: 8) {
-                                TextField(heightUnit == .cm ? "170" : "5'10\"", text: $heightValue)
-                                    .keyboardType(.decimalPad)
-                                    .frame(maxWidth: 80)
+                                if heightUnit == .cm {
+                                    TextField("170", text: $heightValue)
+                                        .keyboardType(.numberPad)
+                                        .frame(maxWidth: 70)
+                                    Text("cm")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    TextField("5", text: $heightFeet)
+                                        .keyboardType(.numberPad)
+                                        .frame(maxWidth: 36)
+                                    Text("ft")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    TextField("10", text: $heightInches)
+                                        .keyboardType(.numberPad)
+                                        .frame(maxWidth: 36)
+                                    Text("in")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
                                 Picker("", selection: $heightUnit) {
                                     ForEach(PersonalInfo.HeightUnit.allCases, id: \.self) { u in
                                         Text(u.rawValue).tag(u)
@@ -68,6 +92,7 @@ struct ProfileSetupSheet: View {
                                 }
                                 .pickerStyle(.segmented)
                                 .frame(width: 100)
+                                .onChange(of: heightUnit) { _, _ in convertHeightFields() }
                             }
                         }
 
@@ -96,15 +121,6 @@ struct ProfileSetupSheet: View {
                         Button {
                             store.syncFromHealthKit()
                             didSyncHealth = true
-                            // Refresh fields after a short delay
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                                if let h = store.info.heightCm, heightValue.isEmpty {
-                                    heightValue = "\(Int(h))"
-                                }
-                                if let w = store.info.weightKg, weightValue.isEmpty {
-                                    weightValue = "\(Int(w))"
-                                }
-                            }
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "heart.fill")
@@ -151,6 +167,33 @@ struct ProfileSetupSheet: View {
                 }
             }
             .onAppear { loadExisting() }
+            .onChange(of: store.info.heightCm) { _, newValue in
+                // Auto-fill height from HealthKit sync if user hasn't typed anything yet
+                if let cm = newValue, heightValue.isEmpty && heightFeet.isEmpty && heightInches.isEmpty {
+                    if heightUnit == .cm {
+                        heightValue = "\(Int(cm))"
+                    } else {
+                        let totalInches = cm / Config.Units.cmPerInch
+                        heightFeet = "\(Int(totalInches) / 12)"
+                        heightInches = "\(Int(totalInches.rounded()) % 12)"
+                    }
+                }
+            }
+            .onChange(of: store.info.weightKg) { _, newValue in
+                // Auto-fill weight from HealthKit sync if user hasn't typed anything yet
+                if let kg = newValue, weightValue.isEmpty {
+                    if weightUnit == .kg {
+                        weightValue = "\(Int(kg))"
+                    } else {
+                        weightValue = "\(Int((kg * Config.Units.lbsPerKg).rounded()))"
+                    }
+                }
+            }
+            .alert("Invalid input", isPresented: .constant(errorMessage != nil)) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
         }
     }
 
@@ -185,41 +228,76 @@ struct ProfileSetupSheet: View {
         let info = store.info
         name = info.name ?? ""
         if let y = info.birthYear { birthYear = "\(y)" }
+        heightUnit = info.heightUnit
+        weightUnit = info.weightUnit
         if let h = info.heightCm {
-            heightUnit = info.heightUnit
             if heightUnit == .cm {
                 heightValue = "\(Int(h))"
             } else {
-                let totalInches = h / 2.54
-                heightValue = "\(Int(totalInches))"
+                let totalInches = h / Config.Units.cmPerInch
+                heightFeet = "\(Int(totalInches) / 12)"
+                heightInches = "\(Int(totalInches.rounded()) % 12)"
             }
         }
         if let w = info.weightKg {
-            weightUnit = info.weightUnit
             if weightUnit == .kg {
                 weightValue = "\(Int(w))"
             } else {
-                weightValue = "\(Int(w * 2.205))"
+                weightValue = "\(Int((w * Config.Units.lbsPerKg).rounded()))"
             }
         }
-        heightUnit = info.heightUnit
-        weightUnit = info.weightUnit
+    }
+
+    /// Convert between cm and ft/in fields when the user toggles the unit picker,
+    /// so the displayed value stays in sync.
+    private func convertHeightFields() {
+        if heightUnit == .cm {
+            // Came from ft/in → compute cm from ft/in fields
+            let ft = Double(heightFeet) ?? 0
+            let inches = Double(heightInches) ?? 0
+            let totalInches = ft * 12 + inches
+            if totalInches > 0 {
+                heightValue = "\(Int((totalInches * Config.Units.cmPerInch).rounded()))"
+            }
+        } else {
+            // Came from cm → compute ft/in
+            if let cm = Double(heightValue), cm > 0 {
+                let totalInches = cm / Config.Units.cmPerInch
+                heightFeet = "\(Int(totalInches) / 12)"
+                heightInches = "\(Int(totalInches.rounded()) % 12)"
+            }
+        }
     }
 
     private func saveAndDismiss() {
-        store.info.name = name.isEmpty ? nil : name
-        store.info.birthYear = Int(birthYear)
+        store.info.name = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : name
+        if let year = Int(birthYear), year >= 1900, year <= Calendar.current.component(.year, from: Date()) {
+            store.info.birthYear = year
+        } else if !birthYear.isEmpty {
+            errorMessage = "Birth year must be a valid 4-digit year"
+            return
+        }
+
         store.info.heightUnit = heightUnit
         store.info.weightUnit = weightUnit
 
-        // Convert height to cm
-        if let val = Double(heightValue) {
-            store.info.heightCm = heightUnit == .cm ? val : val * 2.54
+        // Convert height to cm using structured fields
+        if heightUnit == .cm {
+            if let val = Double(heightValue), val > 0, val < 300 {
+                store.info.heightCm = val
+            }
+        } else {
+            let ft = Double(heightFeet) ?? 0
+            let inches = Double(heightInches) ?? 0
+            let totalInches = ft * 12 + inches
+            if totalInches > 0 && totalInches < 120 {
+                store.info.heightCm = totalInches * Config.Units.cmPerInch
+            }
         }
 
         // Convert weight to kg
-        if let val = Double(weightValue) {
-            store.info.weightKg = weightUnit == .kg ? val : val / 2.205
+        if let val = Double(weightValue), val > 0, val < 1000 {
+            store.info.weightKg = weightUnit == .kg ? val : val / Config.Units.lbsPerKg
         }
 
         store.save()
