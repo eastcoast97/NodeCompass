@@ -1,9 +1,14 @@
 const { plaidClient, store } = require("./_lib/plaid");
+const { corsHeaders, requireApiKey, rateLimit } = require("./_lib/auth");
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  corsHeaders(res, "GET, OPTIONS");
 
+  if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
+  if (!rateLimit(req, res)) return;
+  if (!requireApiKey(req, res)) return;
 
   try {
     if (store.accessTokens.length === 0) return res.json({ accounts: [] });
@@ -26,6 +31,7 @@ module.exports = async (req, res) => {
 
     res.json({ accounts: store.pendingAccounts });
   } catch (error) {
+    console.error("[Plaid] Accounts error:", error.response?.data || error.message);
     res.status(500).json({ error: "Failed to fetch accounts" });
   }
 };

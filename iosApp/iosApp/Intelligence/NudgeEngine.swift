@@ -64,9 +64,12 @@ actor NudgeEngine {
         let monthlySpend = await MainActor.run { TransactionStore.shared.totalSpendThisMonth }
         let monthlyIncome = await MainActor.run { TransactionStore.shared.totalIncomeThisMonth }
 
-        // 1. Budget Warning
+        // 1. Budget Warning (priority 2) takes precedence over Spending Pace
+        // (priority 1) — previously both could fire and consume 2 of 3 slots
+        // for essentially the same message. Now only one ever shows.
         let budgetGoal = goals.first { $0.type == .spending }
-        let budget = budgetGoal?.targetValue ?? (monthlyIncome > 0 ? monthlyIncome * 0.7 : 0)
+        let budget = budgetGoal?.targetValue ?? (monthlyIncome > 0 ? monthlyIncome * Config.Spending.defaultBudgetIncomeRatio : 0)
+        var emittedBudgetNudge = false
         if budget > 0 {
             let pctUsed = monthlySpend / budget
             if pctUsed >= 0.8 && daysLeft >= 5 && !recentlyNudged(.budgetWarning) {
@@ -79,21 +82,25 @@ actor NudgeEngine {
                     priority: 2,
                     actionLabel: nil
                 ))
+                emittedBudgetNudge = true
             }
 
-            // Spending pace
-            let expectedPct = Double(dayOfMonth) / Double(daysInMonth)
-            if pctUsed > expectedPct * 1.2 && pctUsed < 0.8 && !recentlyNudged(.spendingPace) {
-                let overBy = Int((pctUsed - expectedPct) * 100)
-                nudges.append(Nudge(
-                    type: .spendingPace,
-                    title: "Spending Pace",
-                    body: "You're \(overBy)% ahead of your monthly pace. Slowing down could save \(NC.money((pctUsed - expectedPct) * budget)).",
-                    icon: "speedometer",
-                    color: "warning",
-                    priority: 1,
-                    actionLabel: nil
-                ))
+            // Spending pace — only fires if Budget Warning didn't already fire
+            // for the same underlying issue.
+            if !emittedBudgetNudge {
+                let expectedPct = Double(dayOfMonth) / Double(daysInMonth)
+                if pctUsed > expectedPct * 1.2 && pctUsed < 0.8 && !recentlyNudged(.spendingPace) {
+                    let overBy = Int((pctUsed - expectedPct) * 100)
+                    nudges.append(Nudge(
+                        type: .spendingPace,
+                        title: "Spending Pace",
+                        body: "You're \(overBy)% ahead of your monthly pace. Slowing down could save \(NC.money((pctUsed - expectedPct) * budget)).",
+                        icon: "speedometer",
+                        color: "warning",
+                        priority: 1,
+                        actionLabel: nil
+                    ))
+                }
             }
         }
 
@@ -205,9 +212,15 @@ actor NudgeEngine {
             ))
         }
 
-        // Record shown nudges and return top 3
+        // Gate on AppLearningStage: early-stage users get fewer (or zero)
+        // nudges to avoid day-1 overwhelm. Stage progresses as data matures.
+        let stage = await AppLearningStage.shared.currentStage
+        guard stage.allowsNudges else { return [] }
+        let maxSlots = stage.maxNudges
+
+        // Record shown nudges and return top N for this stage
         let sorted = nudges.sorted { $0.priority > $1.priority }
-        let top = Array(sorted.prefix(3))
+        let top = Array(sorted.prefix(maxSlots))
         for nudge in top {
             history.append(NudgeRecord(type: nudge.type.rawValue, date: Date()))
         }
