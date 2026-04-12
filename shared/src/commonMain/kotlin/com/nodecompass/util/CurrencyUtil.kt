@@ -24,13 +24,25 @@ object CurrencyUtil {
         return when {
             // European format: dots as thousands separator, comma as decimal
             // e.g., "150.000,00" or "1.234,56"
+            // Validate: dots must be in groups of 3 digits for thousands, comma has 1-2 decimals after it
             numStr.contains('.') && numStr.contains(',') && numStr.lastIndexOf(',') > numStr.lastIndexOf('.') -> {
-                numStr.replace(".", "").replace(",", ".").toDoubleOrNull()
+                val parts = numStr.split(',')
+                if (parts.size == 2 && parts[1].length <= 2) {
+                    // Valid European: "1.234,56" → "1234.56"
+                    numStr.replace(".", "").replace(",", ".").toDoubleOrNull()
+                } else {
+                    // Ambiguous — treat as standard format
+                    numStr.replace(",", "").toDoubleOrNull()
+                }
             }
 
-            // Standard format: commas as thousands separator, dot as decimal
-            // Handles both Western (150,000.00) and Indian (1,50,000.00)
-            numStr.contains(',') && (numStr.contains('.') || !numStr.contains('.')) -> {
+            // Standard format with both comma and dot: "150,000.00" or Indian "1,50,000.00"
+            numStr.contains(',') && numStr.contains('.') && numStr.lastIndexOf('.') > numStr.lastIndexOf(',') -> {
+                numStr.replace(",", "").toDoubleOrNull()
+            }
+
+            // Commas only (no dot) — thousands separators: "150,000" or "1,50,000"
+            numStr.contains(',') && !numStr.contains('.') -> {
                 numStr.replace(",", "").toDoubleOrNull()
             }
 

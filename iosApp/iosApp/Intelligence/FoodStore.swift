@@ -380,12 +380,18 @@ actor FoodStore {
 
     func inferMealType(from date: Date) -> String {
         let hour = Calendar.current.component(.hour, from: date)
-        switch hour {
-        case 5..<11: return "breakfast"
-        case 11..<15: return "lunch"
-        case 15..<17: return "snack"
-        case 17..<22: return "dinner"
-        default: return "snack"
+        let minute = Calendar.current.component(.minute, from: date)
+        let timeInMinutes = hour * 60 + minute
+
+        // Use minute-level granularity to avoid hard boundaries at exact hours.
+        // Transition zones overlap slightly so the more typical meal type wins.
+        switch timeInMinutes {
+        case 300..<660:   return "breakfast" // 5:00 - 10:59
+        case 660..<690:   return "lunch"     // 11:00 - 11:29 (early lunch)
+        case 690..<900:   return "lunch"     // 11:30 - 14:59
+        case 900..<1020:  return "snack"     // 15:00 - 16:59
+        case 1020..<1350: return "dinner"    // 17:00 - 22:29
+        default:          return "snack"     // Late night
         }
     }
 

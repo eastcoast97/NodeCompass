@@ -20,6 +20,12 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
     /// Track last quick-visit coordinate to avoid duplicates at same spot
     private var lastQuickVisitKey: String?
 
+    /// Track recently notified places to prevent duplicate food notifications
+    /// from both CLVisit and significantLocationChange firing for the same visit.
+    /// Key: grid cell key, Value: timestamp when notification was sent
+    private var recentlyNotifiedPlaces: [String: Date] = [:]
+    private let notificationCooldown: TimeInterval = 3600 // 1 hour
+
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var isTracking = false
 
@@ -146,7 +152,10 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                 await updateFrequentLocations(lat: lat, lon: lon, place: place, arrivalDate: visit.arrivalDate)
 
                 // Check if this is a restaurant — prompt food logging
-                if let placeName = place?.name {
+                // Guard against duplicate notifications from both CLVisit and significantLocationChange
+                let gridKey = "\(Int(lat * 200))_\(Int(lon * 200))"
+                if let placeName = place?.name, !wasRecentlyNotified(gridKey: gridKey) {
+                    markAsNotified(gridKey: gridKey)
                     FoodAutoDetector.checkLocationVisit(
                         placeName: placeName,
                         category: place?.category,
@@ -217,7 +226,9 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                     )
 
                     // Check if restaurant — prompt food logging
-                    if let placeName = place?.name {
+                    // Guard against duplicate notifications from both CLVisit and significantLocationChange
+                    if let placeName = place?.name, !wasRecentlyNotified(gridKey: gridKey) {
+                        markAsNotified(gridKey: gridKey)
                         FoodAutoDetector.checkLocationVisit(
                             placeName: placeName,
                             category: place?.category,
@@ -233,6 +244,25 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("[Location] Error: \(error.localizedDescription)")
+    }
+
+    // MARK: - Notification Deduplication
+
+    /// Check if a food notification was recently sent for this grid cell.
+    private func wasRecentlyNotified(gridKey: String) -> Bool {
+        pruneExpiredNotifications()
+        return recentlyNotifiedPlaces[gridKey] != nil
+    }
+
+    /// Mark a grid cell as recently notified.
+    private func markAsNotified(gridKey: String) {
+        recentlyNotifiedPlaces[gridKey] = Date()
+    }
+
+    /// Remove expired entries to prevent memory growth.
+    private func pruneExpiredNotifications() {
+        let cutoff = Date().addingTimeInterval(-notificationCooldown)
+        recentlyNotifiedPlaces = recentlyNotifiedPlaces.filter { $0.value > cutoff }
     }
 
     // MARK: - Profile Update

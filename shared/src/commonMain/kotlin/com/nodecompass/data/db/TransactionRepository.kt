@@ -43,7 +43,8 @@ class TransactionRepository(private val database: NodeCompassDatabase) {
                 amount = row.amount,
                 currency = Currency.fromCodeOrDefault(row.currency),
                 occurrenceCount = row.occurrence_count,
-                lastSeenMillis = row.last_seen ?: 0L
+                lastSeenMillis = row.last_seen ?: 0L,
+                firstSeenMillis = row.first_seen ?: 0L
             )
         }
     }
@@ -130,5 +131,6 @@ data class RecurringCharge(
     val amount: Double,
     val currency: Currency,
     val occurrenceCount: Long,
-    val lastSeenMillis: Long
+    val lastSeenMillis: Long,
+    val firstSeenMillis: Long
 )

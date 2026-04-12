@@ -54,10 +54,14 @@ object HtmlExtractor {
             text = text.replace(entity, replacement, ignoreCase = true)
         }
 
-        // Decode numeric entities (&#123;)
+        // Decode numeric entities (&#123;) with safe range check
         text = numericEntityRegex.replace(text) { match ->
             val code = match.groupValues[1].toIntOrNull()
-            if (code != null) code.toChar().toString() else match.value
+            if (code != null && code in 0..0xFFFF) {
+                code.toChar().toString()
+            } else {
+                match.value
+            }
         }
 
         // Clean up whitespace
