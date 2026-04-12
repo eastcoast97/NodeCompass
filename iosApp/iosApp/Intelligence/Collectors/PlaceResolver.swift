@@ -464,10 +464,11 @@ class PlaceResolver {
             return "gym"
         }
 
-        // Shopping
+        // Shopping / retail (includes dispensaries, pharmacies-as-retail, etc.)
         let shopKeywords = ["mall", "walmart", "target", "costco", "store", "shop",
                            "market", "grocery", "whole foods", "trader joe", "ikea",
-                           "best buy", "amazon", "outlet"]
+                           "best buy", "amazon", "outlet", "dispensary", "cannabis",
+                           "smoke", "vape", "liquor", "wine"]
         if shopKeywords.contains(where: { name.contains($0) }) {
             return "store"
         }

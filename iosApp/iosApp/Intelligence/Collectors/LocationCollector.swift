@@ -12,10 +12,9 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
     private let placeResolver = PlaceResolver.shared
     private let lastCollectionKey = "location_last_collection"
 
-    /// Categories that count as "quick visit" places (no dwell time needed)
-    private let quickVisitCategories: Set<String> = [
-        "restaurant", "store", "gym", "medical", "transit", "park", "education"
-    ]
+    /// Categories to SKIP for quick-visit logging — everything else gets logged.
+    /// Only residential is skipped because CLVisit handles home detection naturally.
+    private let skipQuickVisitCategories: Set<String> = ["residential"]
 
     /// Track last quick-visit coordinate to avoid duplicates at same spot
     private var lastQuickVisitKey: String?
@@ -189,9 +188,9 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
 
             let category = place?.category ?? "other"
 
-            // For recognized commercial/public places, log immediately (quick visit)
-            // For residential/other, let CLVisit handle it naturally
-            let isQuickVisit = quickVisitCategories.contains(category)
+            // Log all places except residential — any place you physically visit matters.
+            // Residential is skipped because CLVisit handles home detection naturally.
+            let isQuickVisit = !skipQuickVisitCategories.contains(category)
 
             let locationEvent = LocationEvent(
                 latitude: location.coordinate.latitude,

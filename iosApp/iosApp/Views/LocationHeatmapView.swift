@@ -300,12 +300,33 @@ class LocationHeatmapViewModel: ObservableObject {
         let profile = await UserProfileStore.shared.profile
         let frequentLocations = profile.frequentLocations
 
+        // Get transactions for spending correlation
+        let transactions = await MainActor.run { TransactionStore.shared.transactions }
+
         places = frequentLocations.map { loc in
             let durationStr: String
             if loc.averageDurationMinutes >= 60 {
                 durationStr = String(format: "%.1fh", loc.averageDurationMinutes / 60)
-            } else {
+            } else if loc.averageDurationMinutes > 0 {
                 durationStr = "\(Int(loc.averageDurationMinutes))m"
+            } else {
+                durationStr = "—"
+            }
+
+            // Correlate spending: match transactions whose merchant name
+            // loosely matches the place label
+            let placeName = (loc.label ?? "").lowercased()
+            let spent: Double
+            if !placeName.isEmpty && placeName != "unknown" {
+                spent = transactions
+                    .filter { $0.type != "credit" }
+                    .filter { txn in
+                        let merchant = txn.merchant.lowercased()
+                        return merchant.contains(placeName) || placeName.contains(merchant)
+                    }
+                    .reduce(0) { $0 + $1.amount }
+            } else {
+                spent = 0
             }
 
             return PlaceCluster(
@@ -314,7 +335,7 @@ class LocationHeatmapViewModel: ObservableObject {
                 category: loc.inferredType,
                 coordinate: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude),
                 visitCount: loc.visitCount,
-                totalSpent: 0, // Would correlate with transactions
+                totalSpent: spent,
                 avgDuration: durationStr,
                 lastVisit: loc.lastVisit
             )
