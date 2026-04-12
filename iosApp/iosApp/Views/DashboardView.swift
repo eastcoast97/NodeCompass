@@ -130,7 +130,7 @@ struct DashboardView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("NodeCompass")
+            .navigationTitle(greetingTitle)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button { showProfile = true } label: {
@@ -226,6 +226,12 @@ struct DashboardView: View {
             }
         }
         .onChange(of: store.transactions.count) { vm.load() }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("openFoodLog"))) { _ in
+            showFoodLog = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("openHeatmap"))) { _ in
+            showHeatmap = true
+        }
         .sheet(isPresented: $showExportSheet) {
             DataExportView()
         }
@@ -253,6 +259,28 @@ struct DashboardView: View {
         .sheet(isPresented: $showMood) {
             MoodCheckInView()
         }
+        .overlay(alignment: .bottomTrailing) {
+            Button {
+                Haptic.light()
+                showCoach = true
+            } label: {
+                Image(systemName: "brain.head.profile")
+                    .font(.title2)
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(
+                        LinearGradient(
+                            colors: [.purple, .purple.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: Circle()
+                    )
+                    .shadow(color: .purple.opacity(0.3), radius: 8, y: 4)
+            }
+            .padding(.trailing, 20)
+            .padding(.bottom, 16)
+        }
         .sheet(isPresented: $showCoach) {
             LifeCoachView()
         }
@@ -270,6 +298,20 @@ struct DashboardView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .onDisappear { vm.load() }
+        }
+    }
+
+    // MARK: - Greeting
+
+    private var greetingTitle: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let firstName = profileStore.info.name?.split(separator: " ").first.map(String.init) ?? ""
+        let name = firstName.isEmpty ? "" : ", \(firstName)"
+        switch hour {
+        case 5..<12: return "Good morning\(name)"
+        case 12..<17: return "Good afternoon\(name)"
+        case 17..<22: return "Good evening\(name)"
+        default: return "Good night\(name)"
         }
     }
 

@@ -17,31 +17,37 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Today", systemImage: "sun.max.fill")
                 }
                 .tag(0)
 
-            TransactionListView()
+            WealthTabView()
                 .tabItem {
-                    Label("Activity", systemImage: "list.bullet.rectangle.portrait.fill")
+                    Label("Wealth", systemImage: NC.currencyIconCircle)
                 }
                 .tag(1)
 
-            InsightsView()
+            HealthTabView()
                 .tabItem {
-                    Label("Insights", systemImage: "lightbulb.fill")
+                    Label("Health", systemImage: "heart.fill")
                 }
                 .tag(2)
+
+            MindTabView()
+                .tabItem {
+                    Label("Mind", systemImage: "brain.head.profile")
+                }
+                .tag(3)
 
             YouTabView()
                 .tabItem {
                     Label("You", systemImage: "person.fill")
                 }
-                .tag(3)
+                .tag(4)
         }
         .tint(NC.teal)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("navigateToYouTab"))) { _ in
-            selectedTab = 3
+            selectedTab = 4
         }
     }
 }
