@@ -6,11 +6,12 @@ import LinkKit
 
 // MARK: - Modern Onboarding Flow
 //
-// 4 steps — smooth, non-blocking, delightful:
+// 5 steps — progressive disclosure, gets smarter over time:
 //   Step 0: Welcome (pillars + privacy)
-//   Step 1: Permissions (Location + Health — both optional, skip-friendly)
-//   Step 2: Connect Data (Bank + Email)
-//   Step 3: Ready — celebration + what's next
+//   Step 1: Focus selection (what matters most to you right now)
+//   Step 2: Permissions (Location + Health — both optional, skip-friendly)
+//   Step 3: Connect Data (Bank + Email)
+//   Step 4: Ready — celebration + what's next
 
 struct OnboardingView: View {
     @StateObject private var state = OnboardingState()
@@ -18,8 +19,9 @@ struct OnboardingView: View {
 
     @State private var currentStep = 0
     @State private var appeared = false
+    @State private var selectedFocus: AppLearningStage.UserFocus = .everything
 
-    private let totalSteps = 4
+    private let totalSteps = 5
 
     var body: some View {
         ZStack {
@@ -48,9 +50,10 @@ struct OnboardingView: View {
                 Group {
                     switch currentStep {
                     case 0: welcomeStep
-                    case 1: permissionsStep
-                    case 2: connectDataStep
-                    case 3: readyStep
+                    case 1: focusStep
+                    case 2: permissionsStep
+                    case 3: connectDataStep
+                    case 4: readyStep
                     default: EmptyView()
                     }
                 }
@@ -413,8 +416,8 @@ struct OnboardingView: View {
                 }
             }
 
-            // Skip option (steps 1 and 2 only)
-            if currentStep == 1 || currentStep == 2 {
+            // Skip option (steps 2 and 3 only — permissions and data connect)
+            if currentStep == 2 || currentStep == 3 {
                 Button {
                     withAnimation(.spring(response: 0.35)) { currentStep += 1 }
                 } label: {
@@ -431,12 +434,17 @@ struct OnboardingView: View {
         case 0: return "Get Started"
         case 1: return "Continue"
         case 2: return "Continue"
-        case 3: return "Open NodeCompass"
+        case 3: return "Continue"
+        case 4: return "Open NodeCompass"
         default: return "Next"
         }
     }
 
     private func handleNext() {
+        // Persist focus selection when leaving the focus step
+        if currentStep == 1 {
+            Task { await AppLearningStage.shared.setUserFocus(selectedFocus) }
+        }
         if currentStep < totalSteps - 1 {
             withAnimation(.spring(response: 0.35)) { currentStep += 1 }
         } else {
@@ -455,6 +463,97 @@ struct OnboardingView: View {
         }
         UserDefaults.standard.set(true, forKey: "onboardingComplete")
         withAnimation(.easeInOut(duration: 0.3)) { isComplete = true }
+    }
+
+    // MARK: - Step 1: Focus Selection
+    //
+    // Lets the user choose what matters most to them right now. Early-stage
+    // dashboard filters to show only their selected pillar(s), preventing
+    // day-1 overwhelm. They can always see the others later — the app
+    // unlocks them progressively as data matures.
+
+    private var focusStep: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 20) {
+                Spacer().frame(height: 20)
+
+                VStack(spacing: 10) {
+                    Text("What matters most right now?")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+
+                    Text("We'll focus on this first. You can see everything else later — no pressure.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.55))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                .padding(.bottom, 4)
+
+                VStack(spacing: 12) {
+                    ForEach(AppLearningStage.UserFocus.allCases, id: \.self) { focus in
+                        focusCard(focus)
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+        }
+    }
+
+    private func focusCard(_ focus: AppLearningStage.UserFocus) -> some View {
+        let isSelected = selectedFocus == focus
+        return Button {
+            withAnimation(.spring(response: 0.35)) {
+                selectedFocus = focus
+            }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? NC.teal.opacity(0.25) : Color.white.opacity(0.06))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: focus.icon)
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? NC.teal : .white.opacity(0.55))
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(focus.displayName)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text(focus.description)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer()
+
+                ZStack {
+                    Circle()
+                        .stroke(isSelected ? NC.teal : Color.white.opacity(0.15), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                    if isSelected {
+                        Circle()
+                            .fill(NC.teal)
+                            .frame(width: 12, height: 12)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? NC.teal.opacity(0.08) : Color.white.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isSelected ? NC.teal.opacity(0.6) : Color.white.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

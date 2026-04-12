@@ -59,15 +59,20 @@ struct DashboardView: View {
     @State private var showWrapped = false
     @State private var showHeatmap = false
     @State private var showComparison = false
+    @State private var showExportSheet = false
     @State private var pendingEntryToComplete: FoodStore.FoodLogEntry?
     @State private var nudges: [NudgeEngine.Nudge] = []
+    @State private var todayPulse: TodayPulseEngine.TodayPulse?
+    @State private var learningStage: AppLearningStage.Stage = .warmingUp
+    @State private var userFocus: AppLearningStage.UserFocus = .everything
+    @State private var daysUntilNextStage: Int = 0
     @ObservedObject private var profileStore = PersonalInfoStore.shared
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    // Re-auth alert banner
+                    // Re-auth alert banner (persistent until resolved)
                     if !authAlert.issues.isEmpty {
                         reAuthBanner
                             .padding(.horizontal)
@@ -75,8 +80,23 @@ struct DashboardView: View {
                             .padding(.bottom, 8)
                     }
 
-                    // Life Score + Goals
-                    if let score = vm.lifeScore {
+                    // Today's Pulse — the hero of the redesigned dashboard.
+                    // One synthesized sentence across all pillars. Replaces
+                    // the 8-button Quick Action grid.
+                    if let pulse = todayPulse {
+                        TodayPulseCard(
+                            pulse: pulse,
+                            stage: learningStage,
+                            daysUntilNextStage: daysUntilNextStage
+                        )
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    }
+
+                    // Life Score + Goals — only shown once the user has data
+                    // maturity (stage .patterns+). Prevents shaming users
+                    // with zero-score screens in week 1.
+                    if learningStage.showsLifeScore, let score = vm.lifeScore {
                         LifeScoreCard(score: score, goalProgress: vm.goalProgress, onGoalsTap: {
                             showGoals = true
                         })
@@ -84,24 +104,22 @@ struct DashboardView: View {
                         .padding(.top, 8)
                     }
 
-                    // Mood quick check-in
-                    moodQuickRow
-                        .padding(.horizontal)
-                        .padding(.top, 8)
+                    // Mood quick check-in — always available once tracking begins
+                    if learningStage.allowsNudges {
+                        moodQuickRow
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
 
-                    // Quick Actions
-                    quickActionsRow
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-
-                    // Smart Nudges
+                    // Smart Nudges (capped by stage.maxNudges in the engine)
                     if !nudges.isEmpty {
                         nudgesSection
                             .padding(.horizontal)
                             .padding(.top, 4)
                     }
 
-                    // Swipeable Hero Cards
+                    // Swipeable Hero Cards — filtered to user's focus pillars
+                    // in early stages, all pillars once stage >= .insights
                     heroSection
 
                     // Contextual Feed
@@ -114,38 +132,101 @@ struct DashboardView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("NodeCompass")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button { showProfile = true } label: {
                         ZStack(alignment: .topTrailing) {
-                            Image(systemName: "bell.fill")
-                                .font(.subheadline)
+                            Image(systemName: "person.crop.circle")
+                                .font(.title3)
                                 .foregroundStyle(profileStore.info.isComplete ? .secondary : NC.teal)
                             if profileStore.info.pendingCount > 0 {
-                                Text("\(profileStore.info.pendingCount)")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 16, height: 16)
-                                    .background(.red, in: Circle())
-                                    .offset(x: 6, y: -6)
+                                Circle()
+                                    .fill(NC.teal)
+                                    .frame(width: 8, height: 8)
+                                    .offset(x: 4, y: -2)
                             }
                         }
                     }
+                    .accessibilityLabel(profileStore.info.isComplete ? "Profile" : "Complete your profile")
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    // Adaptive "More" menu — replaces the 8-button Quick Action
+                    // grid. Items are gated by learning stage so early users
+                    // don't see features that aren't useful yet.
+                    Menu {
+                        Button { Haptic.light(); showMood = true } label: {
+                            Label("Log Mood", systemImage: "face.smiling")
+                        }
+
+                        if learningStage.allowsLifeCoach {
+                            Button { Haptic.light(); showCoach = true } label: {
+                                Label("Ask Coach", systemImage: "brain.head.profile")
+                            }
+                        }
+
+                        if learningStage.allowsGoals {
+                            Button { Haptic.light(); showGoals = true } label: {
+                                Label("Goals", systemImage: "target")
+                            }
+                            Button { Haptic.light(); showAchievements = true } label: {
+                                Label("Achievements", systemImage: "trophy.fill")
+                            }
+                        }
+
+                        Divider()
+
+                        if learningStage.allowsWeeklyDigest {
+                            Button { Haptic.light(); showDigest = true } label: {
+                                Label("Weekly Digest", systemImage: "doc.text.fill")
+                            }
+                            Button { Haptic.light(); showComparison = true } label: {
+                                Label("Compare Weeks", systemImage: "chart.bar.xaxis")
+                            }
+                        }
+
+                        if learningStage.allowsMonthlyWrapped {
+                            Button { Haptic.light(); showWrapped = true } label: {
+                                Label("Monthly Wrapped", systemImage: "sparkles")
+                            }
+                        }
+
+                        if learningStage.allowsCrossSourceInsights {
+                            Button { Haptic.light(); showWhatIf = true } label: {
+                                Label("What If", systemImage: "wand.and.stars")
+                            }
+                        }
+
+                        Divider()
+
+                        Button { Haptic.light(); showExportSheet = true } label: {
+                            Label("Export Data", systemImage: "square.and.arrow.up")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .accessibilityLabel("More")
+                    }
                 }
             }
-            .refreshable { vm.load() }
+            .refreshable { vm.load(); await refreshAdaptive() }
         }
         .onAppear {
             vm.load()
             authAlert.check()
             Task {
+                await refreshAdaptive()
                 nudges = await NudgeEngine.shared.generateNudges()
                 _ = await AchievementEngine.shared.evaluateToday()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             authAlert.check()
+            Task { await refreshAdaptive() }
         }
         .onChange(of: store.transactions.count) { vm.load() }
+        .sheet(isPresented: $showExportSheet) {
+            DataExportView()
+        }
         .sheet(isPresented: $showGoals) {
             GoalsView()
         }
@@ -701,6 +782,114 @@ struct DashboardView: View {
         case "snack": return .mint
         case "dinner": return .indigo
         default: return .secondary
+        }
+    }
+
+    // MARK: - Adaptive State Refresh
+
+    /// Loads the user's learning stage, focus, days-until-next-stage, and
+    /// today's pulse in parallel. Called on appear and on foreground.
+    private func refreshAdaptive() async {
+        async let stage = AppLearningStage.shared.currentStage
+        async let focus = AppLearningStage.shared.userFocus
+        async let days = AppLearningStage.shared.daysUntilNextStage
+        async let pulse = TodayPulseEngine.shared.generate()
+
+        self.learningStage = await stage
+        self.userFocus = await focus
+        self.daysUntilNextStage = await days
+        self.todayPulse = await pulse
+    }
+}
+
+// MARK: - Today's Pulse Card
+
+/// The new dashboard hero — a single synthesized summary replacing the
+/// 8-button Quick Action grid. Research-aligned: one glanceable insight
+/// across all pillars, observation framing (not judgment).
+private struct TodayPulseCard: View {
+    let pulse: TodayPulseEngine.TodayPulse
+    let stage: AppLearningStage.Stage
+    let daysUntilNextStage: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(toneColor.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: pulse.icon)
+                        .font(.subheadline)
+                        .foregroundStyle(toneColor)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pulse.headline)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    if let detail = pulse.detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer()
+            }
+
+            // Source chips — show which signals built this pulse, so users
+            // can trust where the synthesis came from (confidence indicator).
+            if !pulse.fragments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(pulse.fragments.enumerated()), id: \.offset) { _, fragment in
+                            HStack(spacing: 4) {
+                                Image(systemName: fragment.icon)
+                                    .font(.system(size: 10))
+                                Text(fragment.text)
+                                    .font(.caption2.weight(.medium))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(.secondary)
+                            .background(Color(.systemGray6), in: Capsule())
+                        }
+                    }
+                }
+            }
+
+            // Stage progress — hidden in stage 4 (Intelligence)
+            if stage != .intelligence {
+                HStack(spacing: 6) {
+                    Image(systemName: stage.icon)
+                        .font(.caption2)
+                    Text("\(stage.displayName)")
+                        .font(.caption2.weight(.medium))
+                    if daysUntilNextStage > 0 {
+                        Text("· \(daysUntilNextStage) day\(daysUntilNextStage == 1 ? "" : "s") until next")
+                            .font(.caption2)
+                    }
+                }
+                .foregroundStyle(.tertiary)
+                .padding(.top, 2)
+            }
+        }
+        .padding(14)
+        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Today's pulse: \(pulse.headline)")
+        .accessibilityHint(pulse.detail ?? "")
+    }
+
+    private var toneColor: Color {
+        switch pulse.tone {
+        case .positive:       return .green
+        case .neutral:        return NC.teal
+        case .needsAttention: return NC.warning
+        case .warmingUp:      return .blue
         }
     }
 }

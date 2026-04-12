@@ -7,37 +7,97 @@ struct AchievementsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Summary Header
-                    summaryHeader
+                // Show an aspirational empty state when the user has nothing
+                // yet — better than rendering "0 earned / 0 streak / 0 stats"
+                // which looks broken.
+                if vm.earned.isEmpty && vm.activeStreaks.isEmpty {
+                    emptyState
+                        .padding(.horizontal, NC.hPad)
+                        .padding(.top, 40)
+                } else {
+                    VStack(spacing: 20) {
+                        summaryHeader
 
-                    // Active Streaks
-                    if !vm.activeStreaks.isEmpty {
-                        streaksSection
+                        if !vm.activeStreaks.isEmpty {
+                            streaksSection
+                        }
+
+                        statsCard
+
+                        if !vm.earned.isEmpty {
+                            earnedSection
+                        }
+
+                        if !vm.locked.isEmpty {
+                            lockedSection
+                        }
                     }
-
-                    // Stats Summary
-                    statsCard
-
-                    // Earned Achievements
-                    if !vm.earned.isEmpty {
-                        earnedSection
-                    }
-
-                    // Locked Achievements
-                    if !vm.locked.isEmpty {
-                        lockedSection
-                    }
+                    .padding(.horizontal, NC.hPad)
+                    .padding(.top, 8)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, NC.hPad)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Achievements")
             .navigationBarTitleDisplayMode(.large)
             .task { await vm.load() }
         }
+    }
+
+    /// Aspirational empty state. Shows three example badges you *could* earn
+    /// with a neutral tone and a concrete next step.
+    private var emptyState: some View {
+        VStack(spacing: 24) {
+            ZStack {
+                Circle()
+                    .fill(NC.teal.opacity(0.1))
+                    .frame(width: 110, height: 110)
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(NC.teal)
+            }
+
+            VStack(spacing: 6) {
+                Text("Your first badge is on the way")
+                    .font(.title3.bold())
+                Text("Badges and streaks unlock as NodeCompass learns your patterns. Keep using the app — you don't need to do anything special.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+            }
+
+            VStack(spacing: 10) {
+                lockedExampleRow(icon: "figure.run", title: "First Workout", hint: "Log or sync one workout from Health")
+                lockedExampleRow(icon: "fork.knife", title: "Home Chef", hint: "Cook one meal at home")
+                lockedExampleRow(icon: "flame.fill", title: "Week Warrior", hint: "Check in 7 days in a row")
+            }
+            .padding(.horizontal, 8)
+        }
+    }
+
+    private func lockedExampleRow(icon: String, title: String, hint: String) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
+                    .fill(Color(.systemGray5))
+                    .frame(width: NC.iconSize, height: NC.iconSize)
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.bold())
+                Text(hint).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "lock.fill")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, NC.hPad)
+        .padding(.vertical, NC.vPad)
+        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
     }
 
     // MARK: - Summary Header
