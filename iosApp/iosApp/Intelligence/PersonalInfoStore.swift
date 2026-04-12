@@ -97,6 +97,11 @@ class PersonalInfoStore: ObservableObject {
         }
     }
 
+    func clearAll() {
+        info = .empty
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
     /// Try to pull height and weight from HealthKit if available.
     /// Reentrancy-safe: a second call while the first is in flight is a no-op.
     func syncFromHealthKit() {

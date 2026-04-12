@@ -1,13 +1,18 @@
 import SwiftUI
 
-/// AI Life Coach — conversational interface powered by Groq/Llama.
+/// AI Life Coach — agentic conversational interface powered by Groq/Llama.
+/// Can answer questions AND take actions (set budgets, create goals, start challenges, etc.)
 struct LifeCoachView: View {
     @StateObject private var vm = LifeCoachViewModel()
+    @StateObject private var tokenTracker = GroqTokenTracker.shared
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Token usage bar
+                tokenUsageBar
+
                 // Chat messages
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -46,8 +51,25 @@ struct LifeCoachView: View {
 
                 Divider()
 
-                // Input bar
-                inputBar
+                // Input bar + session token info
+                VStack(spacing: 0) {
+                    inputBar
+
+                    // Session / last request tokens
+                    if tokenTracker.sessionTokens > 0 {
+                        HStack(spacing: 12) {
+                            Label("Session: \(tokenTracker.sessionTokens)", systemImage: "bolt.fill")
+                            if tokenTracker.lastRequestTokens > 0 {
+                                Label("Last: \(tokenTracker.lastRequestTokens)", systemImage: "arrow.up.right")
+                            }
+                        }
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, NC.hPad)
+                        .padding(.bottom, 6)
+                    }
+                }
+                .background(.background)
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Life Coach")
@@ -69,6 +91,47 @@ struct LifeCoachView: View {
         }
     }
 
+    // MARK: - Token Usage Bar
+
+    private var tokenUsageBar: some View {
+        VStack(spacing: 4) {
+            HStack {
+                Image(systemName: "cpu")
+                    .font(.system(size: 10))
+                    .foregroundStyle(NC.teal)
+                Text("Daily Tokens")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(tokenTracker.formattedUsage)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color(.systemGray5))
+                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(tokenBarColor)
+                        .frame(width: geo.size.width * min(tokenTracker.todayPercentage, 1.0), height: 6)
+                }
+            }
+            .frame(height: 6)
+        }
+        .padding(.horizontal, NC.hPad)
+        .padding(.vertical, 8)
+        .background(.background)
+    }
+
+    private var tokenBarColor: Color {
+        let pct = tokenTracker.todayPercentage
+        if pct > 0.9 { return .red }
+        if pct > 0.7 { return .orange }
+        return NC.teal
+    }
+
     // MARK: - Welcome
 
     private var welcomeSection: some View {
@@ -86,7 +149,7 @@ struct LifeCoachView: View {
             VStack(spacing: 8) {
                 Text("Your AI Life Coach")
                     .font(.title3.bold())
-                Text("I know your spending, health, food, and routines. Ask me anything about your life patterns.")
+                Text("I can answer questions AND take actions. Try \"Set a dining budget of 5000\" or \"Start a no eating out challenge\".")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -130,7 +193,7 @@ struct LifeCoachView: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("Ask about your life...", text: $vm.inputText, axis: .vertical)
+            TextField("Ask or command...", text: $vm.inputText, axis: .vertical)
                 .font(.subheadline)
                 .lineLimit(1...4)
                 .focused($isInputFocused)
@@ -151,7 +214,6 @@ struct LifeCoachView: View {
         }
         .padding(.horizontal, NC.hPad)
         .padding(.vertical, 10)
-        .background(.background)
     }
 }
 
@@ -173,6 +235,20 @@ private struct ChatBubble: View {
             }
 
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+                // Action badge (if an action was taken)
+                if let action = message.actionTaken {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                        Text(action)
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.green, in: Capsule())
+                }
+
                 Text(message.text)
                     .font(.subheadline)
                     .foregroundStyle(message.isUser ? .white : .primary)
@@ -221,6 +297,32 @@ private struct BubbleShape: Shape {
     }
 }
 
+// MARK: - CoachAction
+
+enum CoachAction: String, CaseIterable {
+    case setBudget
+    case createGoal
+    case startChallenge
+    case addHabit
+    case logMood
+    case logFood
+    case logExpense
+    case question
+
+    var label: String {
+        switch self {
+        case .setBudget:      return "Budget Set"
+        case .createGoal:     return "Goal Created"
+        case .startChallenge: return "Challenge Started"
+        case .addHabit:       return "Habit Added"
+        case .logMood:        return "Mood Logged"
+        case .logFood:        return "Food Logged"
+        case .logExpense:     return "Expense Logged"
+        case .question:       return "Answered"
+        }
+    }
+}
+
 // MARK: - ViewModel
 
 @MainActor
@@ -230,6 +332,14 @@ class LifeCoachViewModel: ObservableObject {
         let text: String
         let isUser: Bool
         let timestamp: Date
+        let actionTaken: String?
+
+        init(text: String, isUser: Bool, timestamp: Date, actionTaken: String? = nil) {
+            self.text = text
+            self.isUser = isUser
+            self.timestamp = timestamp
+            self.actionTaken = actionTaken
+        }
     }
 
     @Published var messages: [ChatMessage] = []
@@ -239,15 +349,18 @@ class LifeCoachViewModel: ObservableObject {
     private var lifeContext = ""
 
     let suggestions = [
+        "Set a dining budget of 5000",
+        "Start a no eating out challenge",
+        "Add a meditation habit",
         "How did I do this week?",
         "Where am I spending the most?",
-        "Am I getting enough sleep?",
-        "What should I focus on improving?",
-        "How are my eating habits?",
+        "Log my mood as great",
+        "I spent 200 at Starbucks",
     ]
 
+    // MARK: - Build Context
+
     func buildContext() async {
-        // Build a comprehensive life context string from all data sources
         var ctx: [String] = []
         ctx.append("Today is \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).")
 
@@ -306,8 +419,39 @@ class LifeCoachViewModel: ObservableObject {
         let prediction = await SpendingPredictor.predict()
         ctx.append("Projected month-end spend: \(NC.money(prediction.projectedTotal)). \(prediction.daysLeft) days left, \(NC.money(prediction.dailyBudgetRemaining))/day remaining budget.")
 
+        // Budgets
+        let budgetProgress = await BudgetStore.shared.progressForAll()
+        if !budgetProgress.isEmpty {
+            let budgetStr = budgetProgress.map { "\($0.category): \(NC.money($0.spent))/\(NC.money($0.limit)) (\(Int($0.percentage * 100))%)" }.joined(separator: ", ")
+            ctx.append("Budgets: \(budgetStr).")
+        }
+
+        // Habits
+        let habitProgress = await HabitStore.shared.todayProgress()
+        if habitProgress.total > 0 {
+            let habits = await HabitStore.shared.allHabits()
+            let habitNames = habits.map(\.name).joined(separator: ", ")
+            ctx.append("Habits (\(habitProgress.completed)/\(habitProgress.total) today): \(habitNames).")
+        }
+
+        // Challenges
+        let activeChallenges = await ChallengeStore.shared.activeChallenges()
+        if !activeChallenges.isEmpty {
+            let challengeStr = activeChallenges.map { "\($0.title): \(Int($0.currentValue))/\(Int($0.targetValue))" }.joined(separator: ", ")
+            ctx.append("Active challenges: \(challengeStr).")
+        }
+
+        // Savings goals
+        let savingsGoals = await SavingsGoalStore.shared.allGoals()
+        if !savingsGoals.isEmpty {
+            let goalStr = savingsGoals.filter { !$0.isCompleted }.map { "\($0.name): target \(NC.money($0.targetAmount))" }.joined(separator: ", ")
+            if !goalStr.isEmpty { ctx.append("Savings goals: \(goalStr).") }
+        }
+
         lifeContext = ctx.joined(separator: " ")
     }
+
+    // MARK: - Send (Agentic)
 
     func send() async {
         let text = inputText.trimmingCharacters(in: .whitespaces)
@@ -328,26 +472,95 @@ class LifeCoachViewModel: ObservableObject {
             return
         }
 
-        // Build prompt with context
+        // Refresh context before responding
+        await buildContext()
+
+        // Build agentic prompt
         let recentChat = messages.suffix(10).map { ($0.isUser ? "User" : "Coach") + ": " + $0.text }.joined(separator: "\n")
 
-        let prompt = """
-        You are a personal life coach inside NodeCompass, a privacy-first life tracking app. You have access to the user's real data:
+        let systemPrompt = """
+        You are an agentic AI life coach inside NodeCompass, a privacy-first life tracking app.
+        You have access to the user's real data AND can take actions on their behalf.
 
+        USER DATA:
         \(lifeContext)
 
-        Recent conversation:
+        RECENT CONVERSATION:
         \(recentChat)
 
-        User: \(text)
+        You MUST respond with valid JSON in this exact format:
+        {
+          "type": "action" or "question",
+          "action": "setBudget" | "createGoal" | "startChallenge" | "addHabit" | "logMood" | "logFood" | "logExpense" | null,
+          "params": { ... action-specific params, or null for questions },
+          "response": "friendly response to user"
+        }
 
-        Respond as a helpful, encouraging life coach. Be specific using the data above. Keep responses concise (2-4 sentences). Use the actual numbers from their data. If they ask about something you don't have data for, say so honestly. Never make up data.
+        ACTION PARAMS:
+        - setBudget: { "category": "Dining", "amount": 5000 }
+          Categories: Dining, Shopping, Transport, Groceries, Entertainment, Health, Education, Travel, Bills, Other
+        - createGoal: { "name": "Vacation Fund", "target": 50000, "icon": "airplane" }
+        - startChallenge: { "type": "noEatingOut" | "dailySpendLimit" | "stepGoal" | "homeCooking" | "savingsTarget" | "workoutStreak" | "habitStreak", "target": 7, "days": 7 }
+        - addHabit: { "name": "Meditate", "icon": "brain.head.profile", "color": "purple" }
+          Colors: teal, pink, orange, blue, purple, green
+        - logMood: { "level": "great" | "good" | "okay" | "bad" | "terrible", "note": "optional note" }
+        - logFood: { "meal": "lunch", "items": ["rice", "dal"], "calories": 500 }
+        - logExpense: { "amount": 200, "merchant": "Starbucks", "category": "Dining" }
+
+        RULES:
+        - If the user asks to DO something (set budget, create goal, start challenge, add habit, log mood/food/expense), classify as "action" with the appropriate action type and params.
+        - If the user asks a QUESTION about their data, classify as "question" with action null and params null.
+        - Use actual numbers from their data in your response. Be specific and encouraging.
+        - Keep responses concise (2-4 sentences). Never make up data.
+        - For SF Symbol icons, use valid names like: brain.head.profile, figure.run, book.fill, fork.knife, leaf.fill, drop.fill, moon.fill, cart, heart.fill, star.fill
+
+        User: \(text)
         """
 
-        if let response = await groq.generate(prompt: prompt, maxTokens: 300) {
-            let cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "Coach: ", with: "")
-            messages.append(ChatMessage(text: cleaned, isUser: false, timestamp: Date()))
+        if let rawResponse = await groq.generate(prompt: systemPrompt, maxTokens: 400) {
+            // Parse JSON response
+            let cleaned = rawResponse
+                .replacingOccurrences(of: "```json", with: "")
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let data = cleaned.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+
+                let responseText = json["response"] as? String ?? "Done!"
+                let type = json["type"] as? String ?? "question"
+                let actionStr = json["action"] as? String
+                let params = json["params"] as? [String: Any]
+
+                if type == "action", let actionStr, let action = CoachAction(rawValue: actionStr), action != .question {
+                    // Execute the action
+                    let success = await executeAction(action, params: params ?? [:])
+                    if success {
+                        Haptic.success()
+                        messages.append(ChatMessage(
+                            text: responseText,
+                            isUser: false,
+                            timestamp: Date(),
+                            actionTaken: action.label
+                        ))
+                    } else {
+                        messages.append(ChatMessage(
+                            text: responseText + "\n\n(Action could not be completed — please check the parameters.)",
+                            isUser: false,
+                            timestamp: Date()
+                        ))
+                    }
+                } else {
+                    // Plain question/answer
+                    messages.append(ChatMessage(text: responseText, isUser: false, timestamp: Date()))
+                }
+            } else {
+                // Fallback: treat raw text as response if JSON parse fails
+                let fallback = rawResponse
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "Coach: ", with: "")
+                messages.append(ChatMessage(text: fallback, isUser: false, timestamp: Date()))
+            }
         } else {
             messages.append(ChatMessage(
                 text: "Sorry, I couldn't process that. Please try again.",
@@ -356,6 +569,80 @@ class LifeCoachViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    // MARK: - Execute Action
+
+    private func executeAction(_ action: CoachAction, params: [String: Any]) async -> Bool {
+        switch action {
+        case .setBudget:
+            guard let category = params["category"] as? String,
+                  let amount = params["amount"] as? Double ?? (params["amount"] as? Int).map(Double.init) else { return false }
+            await BudgetStore.shared.addBudget(category: category, limit: amount)
+            return true
+
+        case .createGoal:
+            guard let name = params["name"] as? String,
+                  let target = params["target"] as? Double ?? (params["target"] as? Int).map(Double.init) else { return false }
+            let icon = params["icon"] as? String ?? "star.fill"
+            await SavingsGoalStore.shared.addGoal(name: name, target: target, deadline: nil, icon: icon)
+            return true
+
+        case .startChallenge:
+            guard let typeStr = params["type"] as? String,
+                  let challengeType = ChallengeStore.ChallengeType(rawValue: typeStr) else { return false }
+            let target = params["target"] as? Double ?? (params["target"] as? Int).map(Double.init) ?? challengeType.defaultTarget
+            let days = params["days"] as? Int ?? challengeType.defaultDuration
+            await ChallengeStore.shared.createChallenge(type: challengeType, target: target, days: days)
+            return true
+
+        case .addHabit:
+            guard let name = params["name"] as? String else { return false }
+            let icon = params["icon"] as? String ?? "checkmark.circle"
+            let color = params["color"] as? String ?? "teal"
+            await HabitStore.shared.addHabit(name: name, icon: icon, color: color)
+            return true
+
+        case .logMood:
+            guard let levelStr = params["level"] as? String else { return false }
+            let level: MoodStore.MoodLevel
+            switch levelStr.lowercased() {
+            case "great":    level = .great
+            case "good":     level = .good
+            case "okay":     level = .okay
+            case "bad":      level = .bad
+            case "terrible": level = .terrible
+            default:         return false
+            }
+            let note = params["note"] as? String
+            await MoodStore.shared.logMood(level, note: note)
+            return true
+
+        case .logFood:
+            let meal = params["meal"] as? String ?? "snack"
+            let itemNames = params["items"] as? [String] ?? []
+            guard !itemNames.isEmpty else { return false }
+            let items = itemNames.map { FoodItem(name: $0) }
+            let calories = params["calories"] as? Int
+            let entry = FoodStore.FoodLogEntry(
+                mealType: meal,
+                items: items,
+                source: .manual,
+                totalCaloriesEstimate: calories
+            )
+            await FoodStore.shared.addEntry(entry)
+            return true
+
+        case .logExpense:
+            guard let amount = params["amount"] as? Double ?? (params["amount"] as? Int).map(Double.init),
+                  let merchant = params["merchant"] as? String else { return false }
+            let category = params["category"] as? String
+            TransactionStore.shared.addManualTransaction(amount: amount, merchant: merchant, category: category)
+            return true
+
+        case .question:
+            return true
+        }
     }
 
     func clearChat() {

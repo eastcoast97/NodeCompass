@@ -139,6 +139,11 @@ actor MoodStore {
         entries.sorted { $0.date > $1.date }
     }
 
+    func clearAll() {
+        entries = []
+        saveEntries()
+    }
+
     func averageMood(days: Int = 7) -> Double {
         let recent = recentEntries(days: days)
         guard !recent.isEmpty else { return 0 }

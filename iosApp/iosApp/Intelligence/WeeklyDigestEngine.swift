@@ -218,6 +218,11 @@ actor WeeklyDigestEngine {
         digests.max(by: { $0.weekKey < $1.weekKey })
     }
 
+    func clearAll() {
+        digests = []
+        saveDigests()
+    }
+
     // MARK: - Persistence
 
     private static func weekKey(for date: Date) -> String {

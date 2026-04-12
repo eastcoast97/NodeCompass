@@ -10,7 +10,7 @@
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require("plaid");
 
 const plaidConfig = new Configuration({
-  basePath: PlaidEnvironments[process.env.PLAID_ENV || "sandbox"],
+  basePath: PlaidEnvironments[(process.env.PLAID_ENV || "sandbox").trim()],
   baseOptions: {
     headers: {
       "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID,

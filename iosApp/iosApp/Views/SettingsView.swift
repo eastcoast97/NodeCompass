@@ -270,6 +270,14 @@ struct SettingsView: View {
                         await PatternEngine.shared.clearAll()
                         await UserProfileStore.shared.clearAll()
                         await FoodStore.shared.clearAll()
+                        await HabitStore.shared.clearAll()
+                        await BudgetStore.shared.clearAll()
+                        await BillCalendarEngine.shared.clearAll()
+                        await ChallengeStore.shared.clearAll()
+                        await SubscriptionManager.shared.clearAll()
+                        await SavingsGoalStore.shared.clearAll()
+                        await MorningBriefEngine.shared.clearAll()
+                        await WeatherCorrelation.shared.clearAll()
                     }
                 }
             } message: {

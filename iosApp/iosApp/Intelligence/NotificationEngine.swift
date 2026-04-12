@@ -110,6 +110,12 @@ actor NotificationEngine {
         deliveryLog = log
     }
 
+    func clearAll() {
+        deliveryLog = []
+        saveLog()
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+    }
+
     private func pruneOldRecords() {
         // Keep last 7 days of records
         let cutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()

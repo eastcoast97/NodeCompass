@@ -2,6 +2,42 @@ import SwiftUI
 import GoogleSignIn
 import CoreLocation
 import HealthKit
+import UserNotifications
+
+/// Handles notification display and user actions.
+class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+
+    /// Show notifications even when app is in foreground
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound, .badge])
+    }
+
+    /// Handle notification tap actions
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let categoryId = response.notification.request.content.categoryIdentifier
+        let actionId = response.actionIdentifier
+
+        switch categoryId {
+        case "FOOD_LOG":
+            if actionId == "LOG_FOOD" || actionId == UNNotificationDefaultActionIdentifier {
+                NotificationCenter.default.post(name: NSNotification.Name("openFoodLog"), object: nil)
+            }
+        case "PLACE_VISIT":
+            if actionId == UNNotificationDefaultActionIdentifier {
+                NotificationCenter.default.post(name: NSNotification.Name("openHeatmap"), object: nil)
+            }
+        default:
+            break
+        }
+
+        completionHandler()
+    }
+}
 
 @main
 struct NodeCompassApp: App {
@@ -19,6 +55,9 @@ struct NodeCompassApp: App {
         // Register background tasks for intelligence analysis
         BackgroundScheduler.register()
 
+        // Set up notification delegate and categories
+        setupNotifications()
+
         // Initialize intelligence layer — migrate existing transactions into EventStore
         initializeIntelligenceLayer()
 
@@ -26,6 +65,38 @@ struct NodeCompassApp: App {
         if UserDefaults.standard.bool(forKey: "locationTrackingEnabled") {
             LocationCollector.shared.startTracking()
         }
+    }
+
+    private func setupNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = NotificationDelegate.shared
+
+        let logFoodAction = UNNotificationAction(
+            identifier: "LOG_FOOD",
+            title: "Log Meal",
+            options: .foreground
+        )
+        let dismissAction = UNNotificationAction(
+            identifier: "DISMISS",
+            title: "Not Now",
+            options: .destructive
+        )
+
+        let foodCategory = UNNotificationCategory(
+            identifier: "FOOD_LOG",
+            actions: [logFoodAction, dismissAction],
+            intentIdentifiers: [],
+            options: .customDismissAction
+        )
+
+        let placeCategory = UNNotificationCategory(
+            identifier: "PLACE_VISIT",
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        center.setNotificationCategories([foodCategory, placeCategory])
     }
 
     private func initializeIntelligenceLayer() {

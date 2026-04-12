@@ -229,6 +229,11 @@ actor NudgeEngine {
         return top
     }
 
+    func clearAll() {
+        history = []
+        saveHistory()
+    }
+
     // MARK: - Rate Limiting
 
     private func recentlyNudged(_ type: NudgeType, hours: Int = 12) -> Bool {

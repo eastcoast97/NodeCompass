@@ -34,13 +34,27 @@ struct LockScreenView: View {
                             .blur(radius: 50)
                             .opacity(glowOpacity)
 
-                        Image("NodeCompassLogo")
+                        Image("LockIcon")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 240)
+                            .frame(width: 120, height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                            .shadow(color: NC.teal.opacity(0.45), radius: 24, y: 0)
                     }
                     .scaleEffect(logoScale)
                     .opacity(logoOpacity)
+
+                    // App name
+                    HStack(spacing: 0) {
+                        Text("Node")
+                            .font(.title)
+                            .fontWeight(.light)
+                        Text("Compass")
+                            .font(.title)
+                            .fontWeight(.bold)
+                    }
+                    .foregroundStyle(.white)
+                    .opacity(contentOpacity)
 
                     // Tagline
                     Text("Your life, understood.")

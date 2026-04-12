@@ -173,6 +173,11 @@ actor GoalStore {
         saveGoals()
     }
 
+    func clearAll() {
+        goals = []
+        saveGoals()
+    }
+
     // MARK: - Progress Calculation
 
     func progressForAll() async -> [GoalProgress] {

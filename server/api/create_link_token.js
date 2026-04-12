@@ -24,7 +24,8 @@ module.exports = async (req, res) => {
 
     res.json({ link_token: response.data.link_token });
   } catch (error) {
-    console.error("[Plaid] Link token error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to create link token" });
+    const detail = error?.response?.data || error.message;
+    console.error("[Plaid] Link token error:", detail);
+    res.status(500).json({ error: "Failed to create link token", detail });
   }
 };

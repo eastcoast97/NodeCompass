@@ -295,6 +295,16 @@ actor AchievementEngine {
         state.stats
     }
 
+    func clearAll() {
+        state = AchievementState(earned: [], streaks: [], stats: LifetimeStats(
+            totalWorkouts: 0, totalSteps: 0, totalHomeMeals: 0,
+            daysUnderBudget: 0, daysScoreAbove80: 0, consecutiveLogDays: 0,
+            totalSaved: 0, firstEventDate: nil
+        ))
+        lastEvaluatedDateKey = nil
+        saveState()
+    }
+
     func streakDays(for type: StreakType) -> Int {
         state.streaks.first { $0.type == type }?.currentDays ?? 0
     }

@@ -12,13 +12,17 @@ class IntegrationAuthAlert: ObservableObject {
     @Published var issues: [AuthIssue] = []
 
     /// Check all integrations for problems. Called on app foreground + dashboard appear.
-    func check() {
+    /// Async so we can attempt a silent token restore before judging auth state.
+    func check() async {
         var newIssues: [AuthIssue] = []
 
-        // Gmail — check for expired sessions
+        // Gmail — attempt silent restore, then check for expired sessions
         let gmail = GmailService.shared
         let connectedEmails = gmail.connectedEmails
         if !connectedEmails.isEmpty {
+            // Await restore so we don't race against the token refresh
+            await gmail.restorePreviousSignIn()
+
             let expiredEmails = connectedEmails.filter { !gmail.isAuthenticated(email: $0) }
             if !expiredEmails.isEmpty {
                 let emailList = expiredEmails.count == 1

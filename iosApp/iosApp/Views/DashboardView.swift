@@ -212,16 +212,18 @@ struct DashboardView: View {
         }
         .onAppear {
             vm.load()
-            authAlert.check()
             Task {
+                await authAlert.check()
                 await refreshAdaptive()
                 nudges = await NudgeEngine.shared.generateNudges()
                 _ = await AchievementEngine.shared.evaluateToday()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            authAlert.check()
-            Task { await refreshAdaptive() }
+            Task {
+                await authAlert.check()
+                await refreshAdaptive()
+            }
         }
         .onChange(of: store.transactions.count) { vm.load() }
         .sheet(isPresented: $showExportSheet) {
