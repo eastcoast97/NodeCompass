@@ -448,6 +448,30 @@ class LifeCoachViewModel: ObservableObject {
             if !goalStr.isEmpty { ctx.append("Savings goals: \(goalStr).") }
         }
 
+        // Subscriptions
+        let subs = await SubscriptionManager.shared.allSubscriptions()
+        let activeSubs = subs.filter(\.isActive)
+        if !activeSubs.isEmpty {
+            let subMonthly = await SubscriptionManager.shared.monthlyTotal()
+            let subStr = activeSubs.prefix(5).map { "\($0.merchant): \(NC.money($0.amount))/\($0.frequency.label.lowercased())" }.joined(separator: ", ")
+            ctx.append("Active subscriptions (\(activeSubs.count), \(NC.money(subMonthly))/mo): \(subStr).")
+        }
+
+        // Place Intelligence — frequent locations, routines, spending places
+        let profile = await UserProfileStore.shared.currentProfile()
+        let routines = profile.frequentLocations
+            .filter { $0.visitCount >= 3 && $0.label != nil }
+            .sorted { $0.visitCount > $1.visitCount }
+            .prefix(5)
+        if !routines.isEmpty {
+            let placeStr = routines.map { loc -> String in
+                let tag = loc.behaviorTag ?? "visit"
+                let pillars = (loc.pillarTags ?? []).joined(separator: "/")
+                return "\(loc.label ?? "?"): \(tag.replacingOccurrences(of: "_", with: " ")) (\(loc.visitCount)x, pillars: \(pillars))"
+            }.joined(separator: "; ")
+            ctx.append("Frequent places: \(placeStr).")
+        }
+
         lifeContext = ctx.joined(separator: " ")
     }
 

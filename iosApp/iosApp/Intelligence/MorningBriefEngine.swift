@@ -16,6 +16,8 @@ actor MorningBriefEngine {
         let activeStreaks: [String]        // ["3-day gym streak", "5-day cooking streak"]
         let upcomingBills: [String]       // ["Netflix $15.99 due tomorrow"]
         let habitReminder: String?        // "4 habits to complete today"
+        let subscriptionNote: String?     // "3 subscriptions totaling $42/mo"
+        let placeInsight: String?         // "You usually grab coffee around now"
         let motivational: String          // "You're on a roll this week!"
         let weatherNote: String?          // future: weather integration
     }
@@ -99,6 +101,20 @@ actor MorningBriefEngine {
             habitReminder = nil
         }
 
+        // --- Subscriptions ---
+        let activeSubs = await SubscriptionManager.shared.allSubscriptions().filter(\.isActive)
+        let subMonthly = await SubscriptionManager.shared.monthlyTotal()
+        let subscriptionNote: String?
+        if !activeSubs.isEmpty {
+            subscriptionNote = "\(activeSubs.count) subscription\(activeSubs.count == 1 ? "" : "s") totaling \(NC.money(subMonthly))/mo"
+        } else {
+            subscriptionNote = nil
+        }
+
+        // --- Place Intelligence ---
+        let profile = await UserProfileStore.shared.currentProfile()
+        let placeInsight = buildPlaceInsight(profile: profile, hour: hour, cal: cal)
+
         // --- Motivational ---
         let motivational = pickMotivational(
             sleepHours: sleepHours,
@@ -115,6 +131,8 @@ actor MorningBriefEngine {
             activeStreaks: streakStrings,
             upcomingBills: billStrings,
             habitReminder: habitReminder,
+            subscriptionNote: subscriptionNote,
+            placeInsight: placeInsight,
             motivational: motivational,
             weatherNote: nil // future: weather integration
         )
@@ -144,6 +162,7 @@ actor MorningBriefEngine {
                 if let sleep = brief.sleepSummary { bodyParts.append(sleep) }
                 if let budget = brief.budgetRemaining { bodyParts.append(budget) }
                 if let habit = brief.habitReminder { bodyParts.append(habit) }
+                if let placeNote = brief.placeInsight { bodyParts.append(placeNote) }
                 if !brief.activeStreaks.isEmpty {
                     bodyParts.append(brief.activeStreaks.first!)
                 }
@@ -193,6 +212,29 @@ actor MorningBriefEngine {
         } else {
             return "Over today's budget by \(NC.money(abs(remaining)))"
         }
+    }
+
+    private func buildPlaceInsight(profile: UserProfile, hour: Int, cal: Calendar) -> String? {
+        let weekday = cal.component(.weekday, from: Date())
+
+        // Find a routine place that matches the current time of day
+        let routinePlaces = profile.frequentLocations
+            .filter { $0.visitCount >= 3 && $0.behaviorTag?.hasPrefix("routine") == true }
+            .filter { loc in
+                // Match typical visit hour (±2 hours)
+                guard let typicalHour = loc.typicalVisitHour else { return false }
+                return abs(typicalHour - hour) <= 2
+            }
+            .filter { loc in
+                // Match typical visit day if known
+                guard let typicalDay = loc.typicalVisitDay else { return true }
+                return typicalDay == weekday
+            }
+            .sorted { $0.visitCount > $1.visitCount }
+
+        guard let topPlace = routinePlaces.first, let name = topPlace.label else { return nil }
+        let tag = (topPlace.behaviorTag ?? "visit").replacingOccurrences(of: "routine_", with: "")
+        return "You usually head to \(name) for \(tag) around now"
     }
 
     private func pickMotivational(sleepHours: Double, streakCount: Int, habitsCompleted: Int, habitsTotal: Int) -> String {

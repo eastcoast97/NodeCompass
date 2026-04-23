@@ -103,19 +103,33 @@ struct SubscriptionManagerView: View {
             }
 
             ForEach(vm.active) { sub in
-                SubscriptionRow(sub: sub)
-                    .contextMenu {
-                        Button {
-                            Task { await vm.markInactive(id: sub.id) }
-                        } label: {
-                            Label("Mark Inactive", systemImage: "xmark.circle")
-                        }
-                        Button {
-                            vm.showCancelReminder(for: sub)
-                        } label: {
-                            Label("Set Cancel Reminder", systemImage: "bell.badge")
-                        }
+                Button {
+                    Haptic.light()
+                    vm.actionSub = sub
+                } label: {
+                    SubscriptionRow(sub: sub)
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        SmartCancellationService.cancel(merchant: sub.merchant)
+                    } label: {
+                        Label(
+                            SmartCancellationService.actionLabel(for: sub.merchant),
+                            systemImage: "arrow.up.right.square"
+                        )
                     }
+                    Button {
+                        Task { await vm.markInactive(id: sub.id) }
+                    } label: {
+                        Label("Mark Inactive", systemImage: "xmark.circle")
+                    }
+                    Button {
+                        vm.showCancelReminder(for: sub)
+                    } label: {
+                        Label("Set Cancel Reminder", systemImage: "bell.badge")
+                    }
+                }
             }
         }
         .sheet(item: $vm.reminderSub) { sub in
@@ -124,6 +138,28 @@ struct SubscriptionManagerView: View {
             }
             .presentationDetents([.height(300)])
             .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            vm.actionSub.map { "Manage \($0.merchant)" } ?? "Manage subscription",
+            isPresented: Binding(
+                get: { vm.actionSub != nil },
+                set: { if !$0 { vm.actionSub = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: vm.actionSub
+        ) { sub in
+            Button(SmartCancellationService.actionLabel(for: sub.merchant)) {
+                SmartCancellationService.cancel(merchant: sub.merchant)
+            }
+            Button("I've cancelled it") {
+                Task { await vm.markInactive(id: sub.id) }
+            }
+            Button("Set Cancel Reminder") {
+                vm.showCancelReminder(for: sub)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { sub in
+            Text("\(NC.money(sub.amount)) · \(sub.frequency.label.lowercased())")
         }
     }
 
@@ -142,6 +178,14 @@ struct SubscriptionManagerView: View {
             ForEach(vm.inactive) { sub in
                 SubscriptionRow(sub: sub, dimmed: true)
                     .contextMenu {
+                        Button {
+                            SmartCancellationService.cancel(merchant: sub.merchant)
+                        } label: {
+                            Label(
+                                SmartCancellationService.actionLabel(for: sub.merchant),
+                                systemImage: "arrow.up.right.square"
+                            )
+                        }
                         Button {
                             Task { await vm.markActive(id: sub.id) }
                         } label: {
@@ -310,11 +354,16 @@ class SubscriptionManagerViewModel: ObservableObject {
     @Published var yearlyTotal: Double = 0
     @Published var isLoading = false
     @Published var reminderSub: SubscriptionManager.Subscription?
+    /// Subscription currently selected for the row-tap confirmation dialog
+    /// (Help me cancel / Mark cancelled / Set reminder).
+    @Published var actionSub: SubscriptionManager.Subscription?
 
     func load() async {
         isLoading = true
         let manager = SubscriptionManager.shared
 
+        // Always force a fresh detection from transaction history
+        _ = await manager.detectSubscriptions()
         let all = await manager.allSubscriptions()
         active = all.filter(\.isActive).sorted { ($0.nextChargeDate ?? .distantPast) < ($1.nextChargeDate ?? .distantPast) }
         inactive = all.filter { !$0.isActive }

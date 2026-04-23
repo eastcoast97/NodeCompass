@@ -176,11 +176,17 @@ actor LifeScoreEngine {
             (TransactionStore.shared.totalSpendThisMonth, TransactionStore.shared.totalIncomeThisMonth)
         }
 
+        // Factor in subscription costs — separate recurring from discretionary
+        let subMonthly = await SubscriptionManager.shared.monthlyTotal()
+        let discretionarySpend = max(0, monthlySpend - subMonthly)
+
         // Budget adherence: are we on track for the month?
+        // Subscriptions are expected charges, so only budget discretionary spending
         let budgetGoal = goals.first { $0.type == .spending }
         let monthlyBudget = budgetGoal?.targetValue ?? (monthlyIncome > 0 ? monthlyIncome * 0.7 : 50000)
-        let expectedSpendByNow = monthlyBudget * (Double(dayOfMonth) / Double(daysInMonth))
-        let budgetRatio = expectedSpendByNow > 0 ? monthlySpend / expectedSpendByNow : 1.0
+        let discretionaryBudget = max(0, monthlyBudget - subMonthly)
+        let expectedSpendByNow = discretionaryBudget * (Double(dayOfMonth) / Double(daysInMonth))
+        let budgetRatio = expectedSpendByNow > 0 ? discretionarySpend / expectedSpendByNow : 1.0
         let budgetScore: Int
         if budgetRatio <= 0.8 { budgetScore = 100 }       // Under budget
         else if budgetRatio <= 1.0 { budgetScore = 80 }   // On track
@@ -196,12 +202,12 @@ actor LifeScoreEngine {
             savingsScore = 50 // No income data, neutral
         }
 
-        // Impulse control: today's spending vs daily average
+        // Impulse control: today's spending vs daily average (excludes subscriptions)
         let todaySpend = todayEvents.compactMap { e -> Double? in
             if case .transaction(let t) = e.payload, !t.isCredit { return t.amount }
             return nil
         }.reduce(0, +)
-        let avgDailySpend = dayOfMonth > 0 ? monthlySpend / Double(dayOfMonth) : 0
+        let avgDailySpend = dayOfMonth > 0 ? discretionarySpend / Double(dayOfMonth) : 0
         let impulseScore: Int
         if avgDailySpend == 0 { impulseScore = 80 }
         else if todaySpend <= avgDailySpend * 0.5 { impulseScore = 100 }
@@ -238,13 +244,28 @@ actor LifeScoreEngine {
         else if sleepHrs > 0 { sleepScore = 20 }
         else { sleepScore = 0 }
 
-        // Workout (any workout today or streak active = good)
-        let workoutScore: Int
+        // Workout — combine HealthKit data with Place Intelligence gym visits
+        // If user has a routine gym place with 3+ visits, validate workout streak
+        let gymPlaces = profile.frequentLocations.filter {
+            $0.behaviorTag?.contains("fitness") == true || $0.inferredType == "gym"
+        }
+        let weeklyGymVisits = gymPlaces.reduce(0) { total, loc in
+            let recentVisits = (loc.visitDates ?? []).filter {
+                $0.timeIntervalSinceNow > -7 * 86400
+            }.count
+            return total + recentVisits
+        }
+        // Boost workout score if place intelligence confirms gym attendance
+        var workoutScore: Int
         if workoutStats.streak >= 3 { workoutScore = 100 }
         else if workoutStats.streak >= 1 { workoutScore = 70 }
         else if workoutStats.perWeek >= 3 { workoutScore = 60 }
         else if workoutStats.perWeek >= 1 { workoutScore = 40 }
         else { workoutScore = 10 }
+        // Gym visit bonus: if Place Intelligence sees gym visits even without HealthKit workout data
+        if weeklyGymVisits > 0 && workoutStats.perWeek == 0 {
+            workoutScore = max(workoutScore, min(60, weeklyGymVisits * 20))
+        }
 
         // Active calories
         let calTarget = goals.first { $0.type == .calories }?.targetValue ?? 400
@@ -320,18 +341,29 @@ actor LifeScoreEngine {
             return nil
         }
 
-        // Did they visit their usual spots (gym, office)?
-        let visitedKnownPlaces = todayLocations.filter { loc in
-            profile.frequentLocations.contains { freq in
+        // Did they visit their usual spots?
+        // Weight routine places higher than non-routine places
+        var consistencyPoints = 0
+        for loc in todayLocations {
+            if let match = profile.frequentLocations.first(where: { freq in
                 freq.distance(to: loc.latitude, loc.longitude) < 200
+            }) {
+                // Routine places (3+ visits with behavior tag) score more
+                if match.behaviorTag?.hasPrefix("routine") == true || match.behaviorTag?.hasPrefix("daily") == true {
+                    consistencyPoints += 2  // Routine place = double weight
+                } else {
+                    consistencyPoints += 1  // Known but not routine
+                }
             }
-        }.count
+        }
+
+        let totalConsistencyPoints = consistencyPoints
 
         let consistencyScore: Int
-        if visitedKnownPlaces >= 3 { consistencyScore = 100 }
-        else if visitedKnownPlaces >= 2 { consistencyScore = 80 }
-        else if visitedKnownPlaces >= 1 { consistencyScore = 60 }
-        else { consistencyScore = 40 } // Stayed home or no location data
+        if totalConsistencyPoints >= 5 { consistencyScore = 100 }
+        else if totalConsistencyPoints >= 3 { consistencyScore = 80 }
+        else if totalConsistencyPoints >= 1 { consistencyScore = 60 }
+        else { consistencyScore = 40 }
 
         // Exploration: visited somewhere new this week?
         let weekLocations = weekEvents.compactMap { e -> LocationEvent? in

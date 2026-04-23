@@ -147,6 +147,9 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                 // Update profile with this location
                 await updateFrequentLocations(lat: lat, lon: lon, place: place, arrivalDate: visit.arrivalDate)
 
+                // Broadcast cross-pillar signals so other engines react in real-time
+                await broadcastPlaceVisit(lat: lat, lon: lon, place: place)
+
                 // Check if this is a restaurant — prompt food logging.
                 // Guard against duplicate notifications from both CLVisit and
                 // significantLocationChange firing for the same physical visit.
@@ -221,6 +224,13 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                         arrivalDate: location.timestamp
                     )
 
+                    // Broadcast cross-pillar signals so other engines react in real-time
+                    await broadcastPlaceVisit(
+                        lat: location.coordinate.latitude,
+                        lon: location.coordinate.longitude,
+                        place: place
+                    )
+
                     // Check if restaurant — prompt food logging, guarding
                     // against duplicates from the CLVisit delegate also firing.
                     if let placeName = place?.name, !wasRecentlyNotified(gridKey: gridKey) {
@@ -267,17 +277,67 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
 
         // Check if this is near an existing frequent location (within 100m)
         if let index = profile.frequentLocations.firstIndex(where: { $0.distance(to: lat, lon) < Config.Location.sameLocationRadiusMeters }) {
+            // Update existing location
             profile.frequentLocations[index].visitCount += 1
             profile.frequentLocations[index].lastVisit = arrivalDate
+
+            // Track visit dates for pattern detection (keep last 30)
+            var dates = profile.frequentLocations[index].visitDates ?? []
+            dates.append(arrivalDate)
+            if dates.count > 30 { dates = Array(dates.suffix(30)) }
+            profile.frequentLocations[index].visitDates = dates
+
+            // Update resolved place info
             if let resolvedType = place?.category {
                 profile.frequentLocations[index].inferredType = resolvedType
             }
             if let name = place?.name, profile.frequentLocations[index].label == nil {
                 profile.frequentLocations[index].label = name
             }
+
+            // Enrich with Google Places data if available
+            enrichLocation(&profile.frequentLocations[index], with: place)
+
+            // Recalculate behavioral intelligence with updated visit history
+            let loc = profile.frequentLocations[index]
+            profile.frequentLocations[index].typicalVisitDay = PlaceIntelligence.typicalVisitDay(from: loc.visitDates ?? [])
+            profile.frequentLocations[index].typicalVisitHour = PlaceIntelligence.typicalVisitHour(from: loc.visitDates ?? [])
+            profile.frequentLocations[index].behaviorTag = PlaceIntelligence.inferBehaviorTag(
+                category: loc.inferredType,
+                googleTypes: loc.googleTypes,
+                visitCount: loc.visitCount,
+                typicalVisitHour: loc.typicalVisitHour,
+                typicalVisitDay: loc.typicalVisitDay,
+                totalSpent: loc.totalSpent,
+                rating: loc.rating,
+                priceLevel: loc.priceLevel
+            )
+            profile.frequentLocations[index].pillarTags = PlaceIntelligence.pillarTags(
+                category: loc.inferredType,
+                googleTypes: loc.googleTypes,
+                totalSpent: loc.totalSpent,
+                visitCount: loc.visitCount
+            )
+
+            // Persist totalSpent by correlating transactions with this place
+            if let label = loc.label, !label.isEmpty, label.lowercased() != "unknown" {
+                let placeName = label.lowercased()
+                let spent = await MainActor.run {
+                    TransactionStore.shared.transactions
+                        .filter { $0.type.lowercased() != "credit" }
+                        .filter { txn in
+                            let merchant = txn.merchant.lowercased()
+                            return merchant.contains(placeName) || placeName.contains(merchant)
+                        }
+                        .reduce(0.0) { $0 + $1.amount }
+                }
+                if spent > 0 {
+                    profile.frequentLocations[index].totalSpent = spent
+                }
+            }
         } else {
-            // New frequent location
-            let newLocation = FrequentLocation(
+            // New frequent location — build it fully enriched
+            var newLocation = FrequentLocation(
                 id: UUID().uuidString,
                 latitude: lat,
                 longitude: lon,
@@ -285,8 +345,31 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
                 inferredType: place?.category,
                 visitCount: 1,
                 averageDurationMinutes: 0,
-                lastVisit: arrivalDate
+                lastVisit: arrivalDate,
+                visitDates: [arrivalDate]
             )
+
+            // Enrich with Google Places data
+            enrichLocation(&newLocation, with: place)
+
+            // Initial behavioral classification
+            newLocation.behaviorTag = PlaceIntelligence.inferBehaviorTag(
+                category: newLocation.inferredType,
+                googleTypes: newLocation.googleTypes,
+                visitCount: 1,
+                typicalVisitHour: Calendar.current.component(.hour, from: arrivalDate),
+                typicalVisitDay: Calendar.current.component(.weekday, from: arrivalDate),
+                totalSpent: nil,
+                rating: newLocation.rating,
+                priceLevel: newLocation.priceLevel
+            )
+            newLocation.pillarTags = PlaceIntelligence.pillarTags(
+                category: newLocation.inferredType,
+                googleTypes: newLocation.googleTypes,
+                totalSpent: nil,
+                visitCount: 1
+            )
+
             profile.frequentLocations.append(newLocation)
 
             // Keep top N locations
@@ -297,5 +380,107 @@ class LocationCollector: NSObject, DataCollector, CLLocationManagerDelegate, Obs
         }
 
         await UserProfileStore.shared.update(profile)
+    }
+
+    // MARK: - Cross-Service Broadcasting
+
+    /// After a place visit is resolved and profile updated, broadcast signals
+    /// so HabitAutoTracker, PatternEngine, and other engines react in real-time.
+    private func broadcastPlaceVisit(lat: Double, lon: Double, place: PlaceResolver.ResolvedPlace?) async {
+        // Small delay to allow the profile write from updateFrequentLocations to persist
+        try? await Task.sleep(nanoseconds: 200_000_000)
+
+        // Find the FrequentLocation we just updated/created
+        let profile = await UserProfileStore.shared.currentProfile()
+        guard let frequentLoc = profile.frequentLocations.first(where: {
+            $0.distance(to: lat, lon) < Config.Location.sameLocationRadiusMeters
+        }) else {
+            // Fallback: still broadcast with basic info so habits can evaluate
+            let category = place?.category ?? "other"
+            let info: [String: String] = [
+                "category": category,
+                "behaviorTag": "",
+                "locationId": ""
+            ]
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("PlaceVisitDetected"),
+                    object: nil,
+                    userInfo: info
+                )
+            }
+            return
+        }
+
+        // Generate cross-pillar signals from PlaceIntelligence
+        let recentSpend = await MainActor.run {
+            let label = frequentLoc.label?.lowercased() ?? ""
+            guard !label.isEmpty, label != "unknown" else { return nil as Double? }
+            let cal = Calendar.current
+            return TransactionStore.shared.transactions
+                .filter { cal.isDateInToday($0.date) && $0.type.lowercased() != "credit" }
+                .filter { $0.merchant.lowercased().contains(label) || label.contains($0.merchant.lowercased()) }
+                .reduce(0.0) { $0 + $1.amount } as Double?
+        }
+
+        // Generate signals — these can be consumed by any listener that reads the profile
+        let _ = PlaceIntelligence.crossPillarSignals(
+            place: frequentLoc,
+            recentSpend: recentSpend
+        )
+
+        // Post lightweight notification — listeners (HabitAutoTracker, etc.) re-gather
+        // their own signals from the now-updated profile. This avoids passing Swift
+        // value types through NSNotification userInfo.
+        let info: [String: String] = [
+            "category": frequentLoc.inferredType ?? "other",
+            "behaviorTag": frequentLoc.behaviorTag ?? "",
+            "locationId": frequentLoc.id
+        ]
+
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("PlaceVisitDetected"),
+                object: nil,
+                userInfo: info
+            )
+        }
+
+        // Trigger PatternEngine analysis (it has its own 60s debounce)
+        await PatternEngine.shared.runAnalysis()
+    }
+
+    /// Populate Google Places enrichment fields on a FrequentLocation.
+    private func enrichLocation(_ location: inout FrequentLocation, with place: PlaceResolver.ResolvedPlace?) {
+        guard let place = place else { return }
+
+        // Google Place ID for future lookups
+        if let placeId = place.placeId {
+            location.googlePlaceId = placeId
+        }
+
+        // Address
+        if let address = place.address {
+            location.address = address
+        }
+
+        // Rich details from Place Details API
+        if let details = place.details {
+            location.priceLevel = details.priceLevel
+            location.rating = details.rating
+            location.editorialSummary = details.editorialSummary
+
+            // Store all Google types for behavioral analysis
+            if !details.allTypes.isEmpty {
+                location.googleTypes = details.allTypes
+            } else if !details.cuisineTypes.isEmpty {
+                location.googleTypes = details.cuisineTypes
+            }
+
+            // Popular items (from review extraction)
+            if !details.popularItems.isEmpty {
+                location.popularItems = details.popularItems
+            }
+        }
     }
 }

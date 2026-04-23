@@ -302,6 +302,23 @@ class HealthCollector: NSObject, DataCollector, ObservableObject {
         }
     }
 
+    /// Get step count for a specific date from HealthKit.
+    func stepsForDate(_ date: Date) async -> Int {
+        guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return 0 }
+        let cal = Calendar.current
+        let startOfDay = cal.startOfDay(for: date)
+        guard let endOfDay = cal.date(byAdding: .day, value: 1, to: startOfDay) else { return 0 }
+        let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: endOfDay, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, _ in
+                let steps = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
+                continuation.resume(returning: Int(steps))
+            }
+            healthStore.execute(query)
+        }
+    }
+
     /// Get today's active calories directly from HealthKit (real-time).
     func todayActiveCalories() async -> Int {
         guard let calType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) else { return 0 }

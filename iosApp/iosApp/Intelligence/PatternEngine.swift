@@ -36,14 +36,45 @@ actor PatternEngine {
 
         let profile = await UserProfileStore.shared.currentProfile()
 
+        // Fetch user-marked cancelled / false-positive subscriptions once,
+        // so SpendingAnalyzer can filter them out of ghost-sub detection.
+        let cancelledEntries = await CancelledSubscriptionsStore.shared.all()
+        let cancelledKeys = Set(cancelledEntries.map { entry in
+            "\(entry.merchantKey)|\(String(format: "%.2f", entry.amount))"
+        })
+
         // Run analyzers
         var newInsights: [Insight] = []
-        newInsights.append(contentsOf: SpendingAnalyzer.analyze(events: events, profile: profile))
+        newInsights.append(contentsOf: SpendingAnalyzer.analyze(
+            events: events,
+            profile: profile,
+            cancelledSubscriptionKeys: cancelledKeys
+        ))
         newInsights.append(contentsOf: AnomalyDetector.analyze(events: events))
         newInsights.append(contentsOf: LocationAnalyzer.analyze(events: events, profile: profile))
         newInsights.append(contentsOf: HealthAnalyzer.analyze(events: events, profile: profile))
         newInsights.append(contentsOf: FoodAnalyzer.analyze(events: events, profile: profile))
         newInsights.append(contentsOf: CrossSourceAnalyzer.analyze(events: events, profile: profile))
+
+        // Weather-correlated behavioural insights. Requires a known home/frequent
+        // location; fetches today's weather into the rolling 90-day cache and then
+        // generates insights from ≥7 days of history.
+        if !profile.frequentLocations.isEmpty {
+            _ = await WeatherCorrelation.shared.todayWeather()
+            let weatherInsights = await WeatherCorrelation.shared.generateInsights()
+            for w in weatherInsights {
+                // Skip the placeholder "Building Weather Profile" prompt — the
+                // user doesn't need it on the insights feed.
+                guard w.title != "Building Weather Profile" else { continue }
+                newInsights.append(Insight(
+                    type: .weatherPattern,
+                    title: w.title,
+                    body: w.description,
+                    priority: .low,
+                    category: "weather"
+                ))
+            }
+        }
 
         // Deduplicate against existing insights (same type + same title within 24h)
         let deduped = newInsights.filter { new in
@@ -278,8 +309,198 @@ actor PatternEngine {
             profile.stapleFoods = staples
         }
 
+        // MARK: Location Intelligence — outdoor time + routines
+        let thirtyDaysAgo = cal.date(byAdding: .day, value: -30, to: now) ?? now
+        let locationVisits = events.compactMap { event -> (date: Date, loc: LocationEvent)? in
+            guard event.timestamp >= thirtyDaysAgo else { return nil }
+            if case .locationVisit(let l) = event.payload { return (event.timestamp, l) }
+            return nil
+        }
+
+        if !locationVisits.isEmpty {
+            profile.outdoorMinutesPerDay = Self.computeOutdoorMinutes(
+                visits: locationVisits,
+                since: thirtyDaysAgo,
+                until: now,
+                calendar: cal
+            )
+
+            profile.dailyRoutines = Self.buildDailyRoutines(
+                visits: locationVisits,
+                calendar: cal
+            )
+
+            profile.locationRoutines = Self.buildLocationRoutines(
+                visits: locationVisits,
+                calendar: cal
+            )
+        }
+
         profile.lastUpdated = now
         await UserProfileStore.shared.update(profile)
+    }
+
+    // MARK: - Routines + Outdoor Time Helpers
+
+    /// Categories that indicate the user is physically outdoors.
+    private static let outdoorCategories: Set<String> = [
+        "park", "outdoor", "beach", "trail", "sport",
+        "hike", "stadium", "garden"
+    ]
+
+    /// Sum outdoor dwell time across the window, divided by the number
+    /// of distinct days with any location events — the "typical day".
+    private static func computeOutdoorMinutes(
+        visits: [(date: Date, loc: LocationEvent)],
+        since: Date,
+        until: Date,
+        calendar: Calendar
+    ) -> Double {
+        var totalSeconds: Double = 0
+        for v in visits {
+            let category = v.loc.resolvedCategory?.lowercased() ?? ""
+            let isOutdoor = outdoorCategories.contains(where: { category.contains($0) })
+            // Short events with no category → treat as transit between places.
+            let depart = v.loc.departureDate ?? v.loc.arrivalDate
+            let dwell = depart.timeIntervalSince(v.loc.arrivalDate)
+            let isTransit = category.isEmpty && dwell > 0 && dwell < 300
+            if isOutdoor || isTransit {
+                totalSeconds += max(0, dwell)
+            }
+        }
+        let distinctDays = Set(visits.map { calendar.startOfDay(for: $0.date) }).count
+        guard distinctDays > 0 else { return 0 }
+        return (totalSeconds / 60.0) / Double(distinctDays)
+    }
+
+    /// Build the general daily routine — for each hour of the day,
+    /// find the most-common resolvedCategory across the window, then
+    /// collapse contiguous hours with the same category into TimeBlocks.
+    /// Only emits blocks with confidence ≥ 0.4 (pattern holds on ≥40% of days).
+    private static func buildDailyRoutines(
+        visits: [(date: Date, loc: LocationEvent)],
+        calendar: Calendar
+    ) -> [TimeBlock] {
+        guard !visits.isEmpty else { return [] }
+        return buildBlocks(from: visits, calendar: calendar)
+    }
+
+    /// Build per-day-of-week routines (weekday vs weekend split is enough
+    /// for a first pass — most users have clear weekday vs weekend patterns).
+    private static func buildLocationRoutines(
+        visits: [(date: Date, loc: LocationEvent)],
+        calendar: Calendar
+    ) -> [DayOfWeekRoutine] {
+        let weekday = visits.filter { v in
+            let w = calendar.component(.weekday, from: v.date)
+            return w >= 2 && w <= 6  // Mon-Fri
+        }
+        let weekend = visits.filter { v in
+            let w = calendar.component(.weekday, from: v.date)
+            return w == 1 || w == 7  // Sun, Sat
+        }
+
+        var result: [DayOfWeekRoutine] = []
+
+        if !weekday.isEmpty {
+            let blocks = buildBlocks(from: weekday, calendar: calendar)
+            if !blocks.isEmpty {
+                // Emit one DayOfWeekRoutine per weekday with the same blocks.
+                for day in 2...6 {
+                    result.append(DayOfWeekRoutine(dayOfWeek: day, blocks: blocks))
+                }
+            }
+        }
+        if !weekend.isEmpty {
+            let blocks = buildBlocks(from: weekend, calendar: calendar)
+            if !blocks.isEmpty {
+                for day in [1, 7] {
+                    result.append(DayOfWeekRoutine(dayOfWeek: day, blocks: blocks))
+                }
+            }
+        }
+        return result
+    }
+
+    /// Core routine-extraction algorithm shared by buildDailyRoutines and
+    /// buildLocationRoutines.
+    private static func buildBlocks(
+        from visits: [(date: Date, loc: LocationEvent)],
+        calendar: Calendar
+    ) -> [TimeBlock] {
+        let distinctDays = Set(visits.map { calendar.startOfDay(for: $0.date) }).count
+        guard distinctDays > 0 else { return [] }
+
+        // For each hour, tally categories observed during that hour.
+        var hourCategoryCounts: [Int: [String: Int]] = [:]
+        for v in visits {
+            let category = v.loc.resolvedCategory?.lowercased() ?? "unknown"
+            guard category != "unknown" else { continue }
+            let depart = v.loc.departureDate ?? v.loc.arrivalDate
+            let startHour = calendar.component(.hour, from: v.loc.arrivalDate)
+            let endHour = calendar.component(.hour, from: depart)
+            // Handle visits that span midnight by capping at end-of-day for this day.
+            let start = startHour
+            let end = max(start, min(endHour, 23))
+            for h in start...end {
+                hourCategoryCounts[h, default: [:]][category, default: 0] += 1
+            }
+        }
+
+        // For each hour, pick the dominant category + its confidence.
+        struct HourSlot {
+            let hour: Int
+            let category: String
+            let confidence: Double
+        }
+        var slots: [HourSlot] = []
+        for h in 0..<24 {
+            guard let counts = hourCategoryCounts[h],
+                  let top = counts.max(by: { $0.value < $1.value }) else { continue }
+            let confidence = Double(top.value) / Double(distinctDays)
+            if confidence >= 0.4 {
+                slots.append(HourSlot(hour: h, category: top.key, confidence: confidence))
+            }
+        }
+
+        // Collapse contiguous hours with the same category into TimeBlocks.
+        var blocks: [TimeBlock] = []
+        var idx = 0
+        while idx < slots.count {
+            let start = slots[idx]
+            var end = start
+            var j = idx + 1
+            while j < slots.count,
+                  slots[j].hour == end.hour + 1,
+                  slots[j].category == start.category {
+                end = slots[j]
+                j += 1
+            }
+            let label = friendlyRoutineLabel(for: start.category)
+            let avgConfidence = (start.confidence + end.confidence) / 2.0
+            blocks.append(TimeBlock(
+                startHour: start.hour,
+                endHour: end.hour,
+                label: label,
+                confidence: avgConfidence
+            ))
+            idx = j
+        }
+
+        return blocks
+    }
+
+    /// Map a raw place category into a user-friendly routine label.
+    private static func friendlyRoutineLabel(for category: String) -> String {
+        let c = category.lowercased()
+        if c.contains("home") || c.contains("residence") { return "At home" }
+        if c.contains("work") || c.contains("office") { return "At work" }
+        if c.contains("gym") || c.contains("fitness") { return "At the gym" }
+        if c.contains("restaurant") || c.contains("cafe") || c.contains("food") { return "Eating out" }
+        if c.contains("park") || c.contains("outdoor") { return "Outdoors" }
+        if c.contains("school") || c.contains("university") || c.contains("education") { return "At school" }
+        if c.contains("shop") || c.contains("store") || c.contains("market") { return "Shopping" }
+        return category.capitalized
     }
 
     // MARK: - Persistence

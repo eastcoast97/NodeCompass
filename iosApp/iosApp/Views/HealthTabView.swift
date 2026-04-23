@@ -22,6 +22,9 @@ struct HealthTabView: View {
 
     @State private var weeklySteps: [Int] = Array(repeating: 0, count: 7)
 
+    // Place intelligence
+    @State private var healthPlaces: [(name: String, tag: String, visits: Int)] = []
+
     @State private var showFoodLog = false
     @State private var showHabitTracker = false
     @State private var showMoodHistory = false
@@ -35,18 +38,34 @@ struct HealthTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    DiscoveryTip(
+                        id: "health",
+                        icon: "heart.fill",
+                        title: "Health Intelligence",
+                        message: "Steps, workouts, sleep, and food — synced from Apple Health. Your habits get auto-tracked when data confirms them.",
+                        accentColor: .pink
+                    )
+
                     healthRingsCard
+                        .sectionAppear(delay: 0.05)
                     moodCheckInCard
+                        .sectionAppear(delay: 0.1)
                     foodLogCard
+                        .sectionAppear(delay: 0.15)
                     quickActionsRow
+                        .sectionAppear(delay: 0.2)
                     habitsProgressCard
+                        .sectionAppear(delay: 0.25)
+                    healthPlacesCard
+                        .sectionAppear(delay: 0.3)
                     weeklyActivityCard
+                        .sectionAppear(delay: 0.35)
                 }
                 .padding(.horizontal, NC.hPad)
                 .padding(.top, 8)
                 .padding(.bottom, 100)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(NC.bgBase)
             .navigationTitle("Health")
             .navigationBarTitleDisplayMode(.large)
             .task { await loadAllData() }
@@ -494,7 +513,60 @@ struct HealthTabView: View {
         }
     }
 
-    // MARK: - 6. Weekly Activity Summary
+    // MARK: - 6. Health Places (Place Intelligence → Health)
+
+    @ViewBuilder
+    private var healthPlacesCard: some View {
+        if !healthPlaces.isEmpty {
+            VStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundStyle(.pink)
+                    Text("Health Places")
+                        .font(.headline)
+                    Spacer()
+                }
+
+                ForEach(Array(healthPlaces.prefix(4).enumerated()), id: \.offset) { _, place in
+                    HStack(spacing: 12) {
+                        Image(systemName: healthPlaceIcon(place.tag))
+                            .font(.caption)
+                            .foregroundStyle(.pink)
+                            .frame(width: 28, height: 28)
+                            .background(.pink.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(place.name)
+                                .font(.subheadline.weight(.medium))
+                                .lineLimit(1)
+                            Text(place.tag.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Text("\(place.visits)x")
+                            .font(.caption.bold())
+                            .foregroundStyle(.pink)
+                    }
+                }
+            }
+            .card()
+        }
+    }
+
+    private func healthPlaceIcon(_ tag: String) -> String {
+        if tag.contains("fitness") || tag.contains("gym") { return "figure.run" }
+        if tag.contains("outdoor") || tag.contains("park") { return "leaf.fill" }
+        if tag.contains("dining") || tag.contains("lunch") || tag.contains("dinner") || tag.contains("breakfast") { return "fork.knife" }
+        if tag.contains("coffee") { return "cup.and.saucer.fill" }
+        if tag.contains("medical") || tag.contains("pharmacy") { return "cross.fill" }
+        return "mappin.circle.fill"
+    }
+
+    // MARK: - 7. Weekly Activity Summary
 
     private var weeklyActivityCard: some View {
         VStack(spacing: 12) {
@@ -601,6 +673,19 @@ struct HealthTabView: View {
 
         // Weekly steps
         await loadWeeklySteps()
+
+        // Health-related places from Place Intelligence
+        await loadHealthPlaces()
+    }
+
+    private func loadHealthPlaces() async {
+        let profile = await UserProfileStore.shared.currentProfile()
+        healthPlaces = profile.frequentLocations
+            .filter { $0.pillarTags?.contains("health") == true }
+            .filter { $0.label != nil && !($0.label?.isEmpty ?? true) }
+            .sorted { $0.visitCount > $1.visitCount }
+            .prefix(6)
+            .map { (name: $0.label ?? "", tag: $0.behaviorTag ?? "visit", visits: $0.visitCount) }
     }
 
     private func loadWeeklySteps() async {
@@ -612,14 +697,10 @@ struct HealthTabView: View {
                 result.append(0)
                 continue
             }
-            // For today, use the live count; for past days, approximate via todaySteps
-            // (HealthCollector only exposes todaySteps, so past days stay at 0 if no API)
             if i == 0 {
                 result.append(await health.todaySteps())
             } else {
-                // Past day steps are not available via the current API — show 0
-                // In a future update, add a weeklySteps() method to HealthCollector.
-                result.append(0)
+                result.append(await health.stepsForDate(date))
             }
         }
         weeklySteps = result

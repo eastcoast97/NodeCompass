@@ -32,28 +32,45 @@ struct YouTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    DiscoveryTip(
+                        id: "you",
+                        icon: "person.fill",
+                        title: "Your Settings & Data",
+                        message: "Connect bank, email, or health data here. The more you connect, the smarter your insights become.",
+                        accentColor: NC.teal
+                    )
+
                     // MARK: - Integrations
                     integrationsSection
+                        .sectionAppear(delay: 0.05)
 
                     // MARK: - Explore
                     exploreSection
+                        .sectionAppear(delay: 0.1)
 
                     // MARK: - Appearance
                     appearanceSection
+                        .sectionAppear(delay: 0.15)
 
                     // MARK: - Privacy
                     privacySection
+                        .sectionAppear(delay: 0.2)
 
                     // MARK: - Data & App
                     dataSection
+                        .sectionAppear(delay: 0.25)
                 }
                 .padding(.horizontal, NC.hPad)
                 .padding(.top, 8)
                 .padding(.bottom, 40)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(NC.bgBase)
             .navigationTitle("You")
             .navigationBarTitleDisplayMode(.large)
+            .onAppear { bankVM.checkServer() }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("BankConnected"))) { _ in
+                bankVM.checkServer()
+            }
             .sheet(isPresented: $showGeminiSetup) {
                 GeminiSetupView(isPresented: $showGeminiSetup)
             }
@@ -228,7 +245,7 @@ struct YouTabView: View {
                     secondaryAction: categorizer.isConfigured ? ("Remove Key", { categorizer.removeApiKey() }) : nil
                 )
             }
-            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
         }
     }
 
@@ -410,7 +427,7 @@ struct YouTabView: View {
                     .padding(NC.hPad)
                 }
             }
-            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
         }
         .sheet(isPresented: $showHeatmap) { LocationHeatmapView() }
         .sheet(isPresented: $showCoach) { LifeCoachView() }
@@ -464,7 +481,7 @@ struct YouTabView: View {
                 }
                 .padding(NC.hPad)
             }
-            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
         }
     }
 
@@ -502,7 +519,7 @@ struct YouTabView: View {
                                      title: "Health: read-only", detail: "Never writes to or modifies your health data")
                 }
             }
-            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
         }
     }
 
@@ -573,7 +590,7 @@ struct YouTabView: View {
                 }
                 .padding(NC.hPad)
             }
-            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
         }
     }
 
@@ -657,7 +674,7 @@ private struct IntegrationRow: View {
                 // Icon
                 ZStack {
                     RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
-                        .fill(isConnected ? color.opacity(0.12) : Color(.systemGray5))
+                        .fill(isConnected ? color.opacity(0.12) : NC.bgElevated)
                         .frame(width: NC.iconSize, height: NC.iconSize)
                     Image(systemName: icon)
                         .font(.subheadline)
@@ -864,7 +881,7 @@ private struct EmailAccountRow: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .frame(width: 26, height: 26)
-                            .background(Color(.systemGray5), in: Circle())
+                            .background(NC.bgElevated, in: Circle())
                     }
                 }
             }

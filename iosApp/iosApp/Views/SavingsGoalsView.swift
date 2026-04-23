@@ -105,35 +105,60 @@ struct SavingsGoalsView: View {
     // MARK: - Goals List
 
     private var goalsList: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // Active goals
-                if !vm.activeGoals.isEmpty {
-                    ForEach(vm.activeGoals) { progress in
-                        goalCard(progress: progress)
-                    }
-                }
-
-                // Completed goals
-                if !vm.completedGoals.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundStyle(.green)
-                            Text("Completed")
-                                .font(.headline)
+        List {
+            // Active goals
+            if !vm.activeGoals.isEmpty {
+                ForEach(vm.activeGoals) { progress in
+                    goalCard(progress: progress)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                Task { await vm.deleteGoal(id: progress.goal.id) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            Button {
+                                Task { await vm.markComplete(id: progress.goal.id) }
+                            } label: {
+                                Label("Complete", systemImage: "checkmark.circle")
+                            }
+                            .tint(.green)
                         }
-                        .padding(.top, 8)
-
-                        ForEach(vm.completedGoals) { progress in
-                            completedGoalCard(progress: progress)
-                        }
-                    }
                 }
             }
-            .padding(.horizontal, NC.hPad)
-            .padding(.bottom, 30)
+
+            // Completed goals
+            if !vm.completedGoals.isEmpty {
+                Section {
+                    ForEach(vm.completedGoals) { progress in
+                        completedGoalCard(progress: progress)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await vm.deleteGoal(id: progress.goal.id) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                        Text("Completed")
+                            .font(.headline)
+                    }
+                    .padding(.top, 8)
+                    .textCase(nil)
+                }
+            }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: - Goal Card

@@ -213,7 +213,7 @@ struct FoodAnalyzer {
         return [Insight(
             type: .foodSpending,
             title: "Food delivery is \(Int(percent))% of spending",
-            body: "You've spent $\(Int(deliverySpend)) on food delivery in 2 weeks out of $\(Int(totalSpend)) total.",
+            body: "You've spent \(NC.currencySymbol)\(Int(deliverySpend)) on food delivery in 2 weeks out of \(NC.currencySymbol)\(Int(totalSpend)) total.",
             priority: percent >= 30 ? .medium : .low,
             category: "food"
         )]
@@ -442,15 +442,15 @@ struct FoodAnalyzer {
             insights.append(Insight(
                 type: .foodSpending,
                 title: "\(thisWeekOrders.count) food orders this week",
-                body: "You've ordered \(thisWeekOrders.count) times in 7 days, spending $\(Int(totalSpent)). That's about $\(Int(avgPerOrder)) per order. Try cooking a few meals to save.",
+                body: "You've ordered \(thisWeekOrders.count) times in 7 days, spending \(NC.currencySymbol)\(Int(totalSpent)). That's about \(NC.currencySymbol)\(Int(avgPerOrder)) per order. Try cooking a few meals to save.",
                 priority: .high,
                 category: "food"
             ))
         } else {
             insights.append(Insight(
                 type: .foodSpending,
-                title: "\(thisWeekOrders.count) orders — $\(Int(totalSpent)) this week",
-                body: "You've spent $\(Int(totalSpent)) on food delivery this week (~$\(Int(avgPerOrder))/order). That's \(thisWeekOrders.count) orders in 7 days.",
+                title: "\(thisWeekOrders.count) orders — \(NC.currencySymbol)\(Int(totalSpent)) this week",
+                body: "You've spent \(NC.currencySymbol)\(Int(totalSpent)) on food delivery this week (~\(NC.currencySymbol)\(Int(avgPerOrder))/order). That's \(thisWeekOrders.count) orders in 7 days.",
                 priority: .medium,
                 category: "food"
             ))
@@ -482,7 +482,7 @@ struct FoodAnalyzer {
             return [Insight(
                 type: .foodSpending,
                 title: "Ordering \(Int(changePercent))% more than last week",
-                body: "$\(Int(thisWeekSpend)) this week vs $\(Int(lastWeekSpend)) last week on food delivery. \(thisWeek.count) orders vs \(lastWeek.count).",
+                body: "\(NC.currencySymbol)\(Int(thisWeekSpend)) this week vs \(NC.currencySymbol)\(Int(lastWeekSpend)) last week on food delivery. \(thisWeek.count) orders vs \(lastWeek.count).",
                 priority: changePercent > 50 ? .high : .medium,
                 category: "food"
             )]
@@ -490,7 +490,7 @@ struct FoodAnalyzer {
             return [Insight(
                 type: .foodSpending,
                 title: "Ordering \(Int(abs(changePercent)))% less — nice!",
-                body: "$\(Int(thisWeekSpend)) this week vs $\(Int(lastWeekSpend)) last week. You're cutting back on delivery.",
+                body: "\(NC.currencySymbol)\(Int(thisWeekSpend)) this week vs \(NC.currencySymbol)\(Int(lastWeekSpend)) last week. You're cutting back on delivery.",
                 priority: .low,
                 category: "food"
             )]
@@ -520,8 +520,8 @@ struct FoodAnalyzer {
             let restaurant = biggest.food.locationName ?? "a restaurant"
             return Insight(
                 type: .foodSpending,
-                title: "Big order: $\(Int(bigAmount)) from \(restaurant)",
-                body: "That's \(String(format: "%.1f", bigAmount / avg))x your average order of $\(Int(avg)). Splurging is fine occasionally — just keep an eye on it.",
+                title: "Big order: \(NC.currencySymbol)\(Int(bigAmount)) from \(restaurant)",
+                body: "That's \(String(format: "%.1f", bigAmount / avg))x your average order of \(NC.currencySymbol)\(Int(avg)). Splurging is fine occasionally — just keep an eye on it.",
                 priority: .low,
                 category: "food"
             )

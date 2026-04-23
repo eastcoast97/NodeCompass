@@ -7,39 +7,90 @@ struct ChallengesView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Active Challenges
-                    if vm.active.isEmpty && vm.completed.isEmpty {
-                        emptyState
-                    } else if !vm.active.isEmpty {
-                        activeChallengesSection
-                    }
-
-                    // Start a Challenge button
-                    Button { showNewChallenge = true } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Start a Challenge")
-                                .fontWeight(.medium)
+            List {
+                // Active Challenges
+                if vm.active.isEmpty && vm.completed.isEmpty {
+                    emptyState
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                } else if !vm.active.isEmpty {
+                    Section {
+                        ForEach(vm.active) { item in
+                            ActiveChallengeCard(item: item, onDelete: {
+                                Task { await vm.delete(id: item.challenge.id) }
+                            })
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await vm.delete(id: item.challenge.id) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
-                        .font(.subheadline)
-                        .foregroundStyle(NC.teal)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, NC.vPad)
-                        .background(NC.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.cardRadius))
-                    }
-
-                    // Completed Challenges
-                    if !vm.completed.isEmpty {
-                        completedSection
+                    } header: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "flame.fill")
+                                .foregroundStyle(.orange)
+                            Text("Active Challenges")
+                                .font(.subheadline.bold())
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                        .textCase(nil)
                     }
                 }
-                .padding(.horizontal, NC.hPad)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+
+                // Start a Challenge button
+                Button { showNewChallenge = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Start a Challenge")
+                            .fontWeight(.medium)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(NC.teal)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, NC.vPad)
+                    .background(NC.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+
+                // Completed Challenges
+                if !vm.completed.isEmpty {
+                    Section {
+                        ForEach(vm.completed) { item in
+                            CompletedChallengeCard(item: item)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        Task { await vm.delete(id: item.challenge.id) }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                        }
+                    } header: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.green)
+                            Text("Completed")
+                                .font(.subheadline.bold())
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                        .textCase(nil)
+                    }
+                }
             }
+            .listStyle(.plain)
             .background(Color(.systemGroupedBackground))
+            .scrollContentBackground(.hidden)
             .navigationTitle("Challenges")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showNewChallenge) {
@@ -76,41 +127,6 @@ struct ChallengesView: View {
         .card()
     }
 
-    // MARK: - Active Challenges
-
-    private var activeChallengesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(.orange)
-                Text("Active Challenges")
-                    .font(.subheadline.bold())
-            }
-
-            ForEach(vm.active) { item in
-                ActiveChallengeCard(item: item, onDelete: {
-                    Task { await vm.delete(id: item.challenge.id) }
-                })
-            }
-        }
-    }
-
-    // MARK: - Completed Section
-
-    private var completedSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-                Text("Completed")
-                    .font(.subheadline.bold())
-            }
-
-            ForEach(vm.completed) { item in
-                CompletedChallengeCard(item: item)
-            }
-        }
-    }
 }
 
 // MARK: - Active Challenge Card

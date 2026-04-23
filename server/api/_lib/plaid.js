@@ -9,12 +9,17 @@
 
 const { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } = require("plaid");
 
+// Trim all env vars — Vercel sometimes stores them with trailing newlines
+const PLAID_CLIENT_ID = (process.env.PLAID_CLIENT_ID || "").trim();
+const PLAID_SECRET = (process.env.PLAID_SECRET || "").trim();
+const PLAID_ENV = (process.env.PLAID_ENV || "sandbox").trim();
+
 const plaidConfig = new Configuration({
-  basePath: PlaidEnvironments[(process.env.PLAID_ENV || "sandbox").trim()],
+  basePath: PlaidEnvironments[PLAID_ENV],
   baseOptions: {
     headers: {
-      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID,
-      "PLAID-SECRET": process.env.PLAID_SECRET,
+      "PLAID-CLIENT-ID": PLAID_CLIENT_ID,
+      "PLAID-SECRET": PLAID_SECRET,
       "Plaid-Version": "2020-09-14",
     },
   },
@@ -77,4 +82,4 @@ async function syncItemTransactions({ accessToken, itemId, institutionName }) {
   }
 }
 
-module.exports = { plaidClient, store, syncItemTransactions, Products, CountryCode };
+module.exports = { plaidClient, store, syncItemTransactions, Products, CountryCode, PLAID_ENV };

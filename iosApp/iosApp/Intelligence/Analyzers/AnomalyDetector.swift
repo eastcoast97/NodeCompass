@@ -78,6 +78,6 @@ struct AnomalyDetector {
     }
 
     private static func formatAmount(_ amount: Double) -> String {
-        String(format: "$%.2f", amount)
+        "\(NC.currencySymbol)\(String(format: "%.2f", amount))"
     }
 }

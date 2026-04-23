@@ -65,38 +65,42 @@ actor SubscriptionManager {
     // MARK: - Detection
 
     /// Analyze transaction history to detect subscription-like patterns.
+    /// Uses two detection paths:
+    /// 1. Full interval analysis (merchant grouping + frequency detection)
+    /// 2. Ghost subscription bridge (imports from TransactionStore.ghostSubscriptions)
+    /// This ensures subscriptions shown on Dashboard always appear here too.
     func detectSubscriptions() async -> [Subscription] {
+        var detected: [Subscription] = []
+        let cal = Calendar.current
+
+        // --- Path 1: Full interval analysis from raw transactions ---
         let transactions = await MainActor.run {
             TransactionStore.shared.transactions
         }
 
-        // Only debits
-        let debits = transactions.filter { $0.type.uppercased() == "DEBIT" }
+        // All non-credit transactions (handles "DEBIT", "debit", "Debit", etc.)
+        let debits = transactions.filter { $0.type.lowercased() != "credit" }
 
-        // Group by merchant (normalized)
+        // Group by merchant (aggressively normalized)
         var byMerchant: [String: [StoredTransaction]] = [:]
         for txn in debits {
-            let key = txn.merchant.lowercased().trimmingCharacters(in: .whitespaces)
+            let key = normalizeMerchant(txn.merchant)
             byMerchant[key, default: []].append(txn)
         }
 
-        var detected: [Subscription] = []
-        let cal = Calendar.current
-
         for (_, txns) in byMerchant {
-            // Need at least 2 charges to detect a pattern
             guard txns.count >= 2 else { continue }
 
             let sorted = txns.sorted { $0.date < $1.date }
 
-            // Check amount consistency: amounts within 20% of median
+            // Check amount consistency: amounts within 30% of median (relaxed from 20%)
             let amounts = sorted.map(\.amount)
             let sortedAmounts = amounts.sorted()
             let median = sortedAmounts[sortedAmounts.count / 2]
-            let consistent = amounts.allSatisfy { abs($0 - median) / max(median, 1) < 0.2 }
+            let consistent = amounts.allSatisfy { abs($0 - median) / max(median, 1) < 0.3 }
             guard consistent else { continue }
 
-            // Determine frequency from intervals between charges
+            // Determine frequency from intervals
             var intervals: [Int] = []
             for i in 1..<sorted.count {
                 let days = cal.dateComponents([.day], from: sorted[i - 1].date, to: sorted[i].date).day ?? 0
@@ -105,11 +109,15 @@ actor SubscriptionManager {
 
             guard !intervals.isEmpty else { continue }
             let avgInterval = intervals.reduce(0, +) / intervals.count
+            let totalSpanDays = intervals.reduce(0, +)
 
             let frequency: BillingFrequency
-            if avgInterval <= 10 {
+            // Weekly requires 3+ data points AND short average interval AND
+            // enough span to confirm the pattern. Without this, a monthly sub
+            // with 2 charges close together (prorated + regular) gets misclassified.
+            if avgInterval <= 10 && sorted.count >= 3 && totalSpanDays >= 14 {
                 frequency = .weekly
-            } else if avgInterval <= 45 {
+            } else if avgInterval <= 45 || totalSpanDays < 14 {
                 frequency = .monthly
             } else if avgInterval <= 120 {
                 frequency = .quarterly
@@ -117,51 +125,115 @@ actor SubscriptionManager {
                 frequency = .yearly
             }
 
-            // Calculate next charge date
             let lastDate = sorted.last!.date
-            let nextDate: Date?
-            switch frequency {
-            case .weekly:
-                nextDate = cal.date(byAdding: .day, value: 7, to: lastDate)
-            case .monthly:
-                nextDate = cal.date(byAdding: .month, value: 1, to: lastDate)
-            case .quarterly:
-                nextDate = cal.date(byAdding: .month, value: 3, to: lastDate)
-            case .yearly:
-                nextDate = cal.date(byAdding: .year, value: 1, to: lastDate)
-            }
-
-            // Check if we already track this merchant
+            let nextDate = nextChargeDate(from: lastDate, frequency: frequency, cal: cal)
             let merchantName = sorted.first!.merchant
-            if let idx = subscriptions.firstIndex(where: { $0.merchant.lowercased() == merchantName.lowercased() }) {
-                // Update existing subscription with latest data
-                subscriptions[idx].amount = median
-                subscriptions[idx].lastChargeDate = lastDate
-                subscriptions[idx].nextChargeDate = nextDate
-                subscriptions[idx].frequency = frequency
-                detected.append(subscriptions[idx])
-            } else {
-                let sub = Subscription(
-                    id: UUID().uuidString,
-                    merchant: merchantName,
-                    amount: median,
-                    frequency: frequency,
-                    category: sorted.first?.category ?? "Subscriptions",
-                    lastChargeDate: lastDate,
-                    nextChargeDate: nextDate,
-                    isActive: true,
-                    cancelReminder: nil,
-                    notes: nil
-                )
+
+            if let sub = upsertSubscription(merchant: merchantName, amount: median, frequency: frequency,
+                                             category: sorted.first?.category ?? "Subscriptions",
+                                             lastCharge: lastDate, nextCharge: nextDate) {
                 detected.append(sub)
             }
         }
 
-        // Merge new detections with existing user-modified subs
+        // --- Path 2: Bridge ghost subscriptions from TransactionStore ---
+        // Ghost subs use exact amount matching (merchant_AMOUNTINCENTS).
+        // If TransactionStore sees them, SubscriptionManager should too.
+        let ghosts = await MainActor.run {
+            TransactionStore.shared.ghostSubscriptions
+        }
+
+        for ghost in ghosts {
+            let normalizedKey = normalizeMerchant(ghost.merchant)
+            // Skip if we already detected this merchant via Path 1
+            let alreadyDetected = detected.contains { normalizeMerchant($0.merchant) == normalizedKey }
+            let alreadyTracked = subscriptions.contains { normalizeMerchant($0.merchant) == normalizedKey }
+            if alreadyDetected || alreadyTracked { continue }
+
+            let frequency = ghostFrequencyToBilling(ghost.frequency)
+            let lastCharge = debits
+                .filter { normalizeMerchant($0.merchant) == normalizedKey }
+                .sorted { $0.date > $1.date }
+                .first?.date ?? Date()
+            let nextDate = nextChargeDate(from: lastCharge, frequency: frequency, cal: cal)
+
+            let sub = Subscription(
+                id: UUID().uuidString,
+                merchant: ghost.merchant,
+                amount: ghost.amount,
+                frequency: frequency,
+                category: "Subscriptions",
+                lastChargeDate: lastCharge,
+                nextChargeDate: nextDate,
+                isActive: true,
+                cancelReminder: nil,
+                notes: nil
+            )
+            detected.append(sub)
+        }
+
+        // Merge and persist
         mergeDetected(detected)
         saveToDisk()
 
         return subscriptions.filter(\.isActive)
+    }
+
+    // MARK: - Detection Helpers
+
+    /// Normalize merchant name for grouping (strip suffixes, lowercase, trim)
+    private func normalizeMerchant(_ name: String) -> String {
+        var n = name.lowercased().trimmingCharacters(in: .whitespaces)
+        // Strip common suffixes: "Inc", "LLC", "Ltd", "Co", trailing numbers
+        let suffixes = [" inc", " llc", " ltd", " co", " corp", " inc.", " llc.", " ltd."]
+        for suffix in suffixes {
+            if n.hasSuffix(suffix) { n = String(n.dropLast(suffix.count)) }
+        }
+        return n.trimmingCharacters(in: .whitespaces)
+    }
+
+    private func nextChargeDate(from lastDate: Date, frequency: BillingFrequency, cal: Calendar) -> Date? {
+        switch frequency {
+        case .weekly:    return cal.date(byAdding: .day, value: 7, to: lastDate)
+        case .monthly:   return cal.date(byAdding: .month, value: 1, to: lastDate)
+        case .quarterly: return cal.date(byAdding: .month, value: 3, to: lastDate)
+        case .yearly:    return cal.date(byAdding: .year, value: 1, to: lastDate)
+        }
+    }
+
+    private func ghostFrequencyToBilling(_ freq: String) -> BillingFrequency {
+        switch freq.lowercased() {
+        case "weekly":    return .weekly
+        case "monthly":   return .monthly
+        case "quarterly": return .quarterly
+        case "yearly":    return .yearly
+        default:          return .monthly
+        }
+    }
+
+    /// Upsert a subscription (update existing or create new). Returns the subscription.
+    private func upsertSubscription(merchant: String, amount: Double, frequency: BillingFrequency,
+                                     category: String, lastCharge: Date, nextCharge: Date?) -> Subscription? {
+        if let idx = subscriptions.firstIndex(where: { normalizeMerchant($0.merchant) == normalizeMerchant(merchant) }) {
+            subscriptions[idx].amount = amount
+            subscriptions[idx].lastChargeDate = lastCharge
+            subscriptions[idx].nextChargeDate = nextCharge
+            subscriptions[idx].frequency = frequency
+            return subscriptions[idx]
+        } else {
+            return Subscription(
+                id: UUID().uuidString,
+                merchant: merchant,
+                amount: amount,
+                frequency: frequency,
+                category: category,
+                lastChargeDate: lastCharge,
+                nextChargeDate: nextCharge,
+                isActive: true,
+                cancelReminder: nil,
+                notes: nil
+            )
+        }
     }
 
     // MARK: - Queries
@@ -242,17 +314,18 @@ actor SubscriptionManager {
 
     private func mergeDetected(_ detected: [Subscription]) {
         for sub in detected {
+            let normalizedNew = normalizeMerchant(sub.merchant)
             let alreadyTracked = subscriptions.contains {
-                $0.id == sub.id || $0.merchant.lowercased() == sub.merchant.lowercased()
+                $0.id == sub.id || normalizeMerchant($0.merchant) == normalizedNew
             }
             if !alreadyTracked {
                 subscriptions.append(sub)
             }
         }
-        // Deduplicate by merchant name
+        // Deduplicate by normalized merchant name
         var seen = Set<String>()
         subscriptions = subscriptions.filter { sub in
-            let key = sub.merchant.lowercased()
+            let key = normalizeMerchant(sub.merchant)
             if seen.contains(key) { return false }
             seen.insert(key)
             return true

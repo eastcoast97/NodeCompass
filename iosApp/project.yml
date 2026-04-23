@@ -73,9 +73,22 @@ targets:
         BGTaskSchedulerPermittedIdentifiers:
           - com.nodecompass.app.refresh
           - com.nodecompass.app.processing
+        # canOpenURL() requires schemes to be declared here — used by
+        # SmartCancellationService to detect merchant apps and deep-link into
+        # their subscription settings for faster cancellation.
+        LSApplicationQueriesSchemes:
+          - nflx
+          - spotify
+          - disneyplus
+          - youtube
+          - swiggy
+          - zomato
+          - mailto
+          - itms-apps
     dependencies:
       - sdk: LocalAuthentication.framework
       - sdk: CoreLocation.framework
+      - sdk: MapKit.framework
       - sdk: HealthKit.framework
       - sdk: Speech.framework
       - package: GoogleSignIn

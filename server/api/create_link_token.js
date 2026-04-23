@@ -1,4 +1,4 @@
-const { plaidClient, Products, CountryCode } = require("./_lib/plaid");
+const { plaidClient, Products, CountryCode, PLAID_ENV } = require("./_lib/plaid");
 const { corsHeaders, requireApiKey, rateLimit } = require("./_lib/auth");
 
 module.exports = async (req, res) => {
@@ -12,6 +12,11 @@ module.exports = async (req, res) => {
 
   try {
     const webhookUrl = process.env.WEBHOOK_URL || undefined;
+    // redirect_uri required for OAuth bank connections.
+    // Must match what's registered in Plaid Dashboard.
+    const redirectUri =
+      (process.env.PLAID_REDIRECT_URI || "").trim() ||
+      "https://cdn.plaid.com/link/redirect/nodecompass";
 
     const response = await plaidClient.linkTokenCreate({
       user: { client_user_id: "nodecompass-user-1" },
@@ -20,6 +25,7 @@ module.exports = async (req, res) => {
       country_codes: [CountryCode.Us],
       language: "en",
       webhook: webhookUrl,
+      redirect_uri: redirectUri,
     });
 
     res.json({ link_token: response.data.link_token });

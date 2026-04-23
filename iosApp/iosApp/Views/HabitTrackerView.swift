@@ -13,19 +13,39 @@ struct HabitTrackerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    todayHeader
-                    habitList
-                    if habits.isEmpty {
-                        emptyState
-                    }
+            List {
+                todayHeader
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+
+                ForEach(habits) { habit in
+                    habitRow(habit)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task {
+                                    await HabitStore.shared.deleteHabit(id: habit.id)
+                                    await reload()
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                 }
-                .padding(.horizontal, NC.hPad)
-                .padding(.top, 8)
-                .padding(.bottom, 100)
+
+                if habits.isEmpty {
+                    emptyState
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                }
             }
+            .listStyle(.plain)
             .background(Color(.systemGroupedBackground))
+            .scrollContentBackground(.hidden)
             .navigationTitle("Habits")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -87,16 +107,6 @@ struct HabitTrackerView: View {
         return CGFloat(completed) / CGFloat(total)
     }
 
-    // MARK: - Habit List
-
-    private var habitList: some View {
-        LazyVStack(spacing: 10) {
-            ForEach(habits) { habit in
-                habitRow(habit)
-            }
-        }
-    }
-
     private func habitRow(_ habit: HabitStore.Habit) -> some View {
         let isDone = completedIds.contains(habit.id)
         let streak = streaks[habit.id] ?? 0
@@ -145,12 +155,19 @@ struct HabitTrackerView: View {
                         .foregroundStyle(color)
                 }
 
-                // Name + streak
+                // Name + streak + auto badge
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(habit.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(isDone ? .secondary : .primary)
-                        .strikethrough(isDone, color: .secondary)
+                    HStack(spacing: 4) {
+                        Text(habit.name)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(isDone ? .secondary : .primary)
+                            .strikethrough(isDone, color: .secondary)
+                        if habit.autoTrackSource != nil {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.green)
+                        }
+                    }
 
                     if streak > 0 {
                         Text("\u{1F525} \(streak) day\(streak == 1 ? "" : "s")")
@@ -171,28 +188,6 @@ struct HabitTrackerView: View {
             .card()
         }
         .buttonStyle(.plain)
-        .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-                Task {
-                    await HabitStore.shared.deleteHabit(id: habit.id)
-                    await reload()
-                }
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-        // Wrap in a contextMenu for swipe-to-delete since LazyVStack
-        // doesn't support .swipeActions natively — provide long-press fallback.
-        .contextMenu {
-            Button(role: .destructive) {
-                Task {
-                    await HabitStore.shared.deleteHabit(id: habit.id)
-                    await reload()
-                }
-            } label: {
-                Label("Delete Habit", systemImage: "trash")
-            }
-        }
     }
 
     // MARK: - Empty State
@@ -427,7 +422,8 @@ private struct AddHabitSheet: View {
                             await HabitStore.shared.addHabit(
                                 name: suggestion.name,
                                 icon: suggestion.icon,
-                                color: suggestion.color
+                                color: suggestion.color,
+                                autoTrackSource: suggestion.autoTrack
                             )
                             await onAdded()
                             dismiss()
@@ -444,12 +440,25 @@ private struct AddHabitSheet: View {
                                     .foregroundStyle(colorFor(suggestion.color))
                             }
 
-                            Text(suggestion.name)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(suggestion.name)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                if suggestion.autoTrack != nil {
+                                    Text("Auto-tracked")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.green)
+                                }
+                            }
 
                             Spacer()
+
+                            if suggestion.autoTrack != nil {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.green)
+                            }
                         }
                         .padding(10)
                         .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))

@@ -130,8 +130,8 @@ struct CrossSourceAnalyzer {
                     matched.insert(txn.txn.transactionId)
                     insights.append(Insight(
                         type: .locationCorrelation,
-                        title: "$\(Int(txn.txn.amount)) at \(placeName)",
-                        body: "You visited \(placeName) and spent $\(String(format: "%.2f", txn.txn.amount)). Matched from your location and bank transaction.",
+                        title: "\(NC.currencySymbol)\(Int(txn.txn.amount)) at \(placeName)",
+                        body: "You visited \(placeName) and spent \(NC.currencySymbol)\(String(format: "%.2f", txn.txn.amount)). Matched from your location and bank transaction.",
                         priority: .low,
                         category: "spending",
                         relatedEventIds: [txn.txn.transactionId]
@@ -180,8 +180,8 @@ struct CrossSourceAnalyzer {
 
         return [Insight(
             type: .locationCorrelation,
-            title: "Post-workout spending: ~$\(Int(avgSpend))",
-            body: "After \(postWorkoutSpends.count) of your \(workouts.count) workouts, you grabbed food — often at \(topMerchant). That's ~$\(Int(avgSpend)) per session.",
+            title: "Post-workout spending: ~\(NC.currencySymbol)\(Int(avgSpend))",
+            body: "After \(postWorkoutSpends.count) of your \(workouts.count) workouts, you grabbed food — often at \(topMerchant). That's ~\(NC.currencySymbol)\(Int(avgSpend)) per session.",
             priority: .medium,
             category: "spending"
         )]
@@ -293,7 +293,7 @@ struct CrossSourceAnalyzer {
         return [Insight(
             type: .eatingPattern,
             title: "Lazy days = \(String(format: "%.1f", multiplier))x more delivery",
-            body: "On days you walk under \(Int(lowThreshold)) steps, you spend ~$\(Int(avgLowSpend)) on food delivery vs $\(Int(avgHighSpend)) on active days.",
+            body: "On days you walk under \(Int(lowThreshold)) steps, you spend ~\(NC.currencySymbol)\(Int(avgLowSpend)) on food delivery vs \(NC.currencySymbol)\(Int(avgHighSpend)) on active days.",
             priority: .medium,
             category: "food"
         )]
@@ -382,7 +382,7 @@ struct CrossSourceAnalyzer {
             insights.append(Insight(
                 type: .spendingTrend,
                 title: "Weekends cost \(String(format: "%.1f", ratio))x more",
-                body: "You spend ~$\(Int(weekendAvg))/day on weekends vs $\(Int(weekdayAvg))/day on weekdays. That's where most of your budget goes.",
+                body: "You spend ~\(NC.currencySymbol)\(Int(weekendAvg))/day on weekends vs \(NC.currencySymbol)\(Int(weekdayAvg))/day on weekdays. That's where most of your budget goes.",
                 priority: .medium,
                 category: "spending"
             ))
@@ -405,7 +405,7 @@ struct CrossSourceAnalyzer {
                 insights.append(Insight(
                     type: .eatingPattern,
                     title: "Weekend = takeout mode",
-                    body: "You order delivery \(String(format: "%.1f", wePerDay * 7))x/week on weekends vs \(String(format: "%.1f", wdPerDay * 7))x on weekdays. Meal prepping on Sunday could save you $\(Int(weekendDelivery.compactMap { $0.f.totalSpent }.reduce(0, +) / Double(weekendDays) * 0.5))/weekend.",
+                    body: "You order delivery \(String(format: "%.1f", wePerDay * 7))x/week on weekends vs \(String(format: "%.1f", wdPerDay * 7))x on weekdays. Meal prepping on Sunday could save you \(NC.currencySymbol)\(Int(weekendDelivery.compactMap { $0.f.totalSpent }.reduce(0, +) / Double(weekendDays) * 0.5))/weekend.",
                     priority: .low,
                     category: "food"
                 ))
@@ -499,7 +499,7 @@ struct CrossSourceAnalyzer {
             return Insight(
                 type: .spendingTrend,
                 title: "\(Int(percentUsed))% of last month's budget used",
-                body: "You've spent $\(Int(thisMonthSpend)) in \(dayOfMonth) days — on track for $\(Int(projected)) this month vs $\(Int(lastMonthSpend)) last month. That's \(Int(projected / lastMonthSpend * 100 - 100))% more.",
+                body: "You've spent \(NC.currencySymbol)\(Int(thisMonthSpend)) in \(dayOfMonth) days — on track for \(NC.currencySymbol)\(Int(projected)) this month vs \(NC.currencySymbol)\(Int(lastMonthSpend)) last month. That's \(Int(projected / lastMonthSpend * 100 - 100))% more.",
                 priority: percentUsed > 90 ? .high : .medium,
                 category: "spending"
             )
@@ -539,7 +539,7 @@ struct CrossSourceAnalyzer {
         // Spending
         let totalSpend = weekSpend.map { $0.txn.amount }.reduce(0, +)
         if totalSpend > 0 {
-            parts.append("spent $\(Int(totalSpend))")
+            parts.append("spent \(NC.currencySymbol)\(Int(totalSpend))")
         }
 
         // Food

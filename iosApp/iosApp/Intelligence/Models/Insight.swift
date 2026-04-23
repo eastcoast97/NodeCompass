@@ -62,6 +62,7 @@ enum InsightType: String, Codable {
     case nutritionAlert         // "No vegetables logged in 3 days"
     case foodSpending           // "Food delivery is 40% of your spending"
     case mealStreak             // "Cooked at home 5 days straight!"
+    case weatherPattern         // "You order 2x more delivery on rainy days"
 
     var icon: String {
         switch self {
@@ -80,6 +81,7 @@ enum InsightType: String, Codable {
         case .nutritionAlert: return "leaf.fill"
         case .foodSpending: return "cart.fill"
         case .mealStreak: return "flame.fill"
+        case .weatherPattern: return "cloud.sun.fill"
         }
     }
 }

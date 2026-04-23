@@ -141,12 +141,49 @@ class DashboardViewModel: ObservableObject {
             )
         }
 
+        // Populate ghost subs synchronously with raw data; the async Task
+        // below then filters out ones the user has marked as cancelled /
+        // not-a-subscription and reassigns the published property.
         ghostSubscriptions = store.ghostSubscriptions.map { ghost in
             GhostSubscriptionItem(
                 id: "\(ghost.merchant)_\(ghost.amount)", merchant: ghost.merchant,
                 amount: ghost.amount, currencySymbol: ghost.currencySymbol,
                 frequency: ghost.frequency, occurrences: ghost.occurrences
             )
+        }
+
+        Task { await applyCancelledSubscriptionsFilter() }
+    }
+
+    /// Re-reads the cancelled-subscriptions store and hides any matching
+    /// ghost sub from the published list. Safe to call any time.
+    func applyCancelledSubscriptionsFilter() async {
+        let cancelled = await CancelledSubscriptionsStore.shared.all()
+        guard !cancelled.isEmpty else { return }
+        let keys = Set(cancelled.map { entry -> String in
+            let m = entry.merchantKey
+            return "\(m)|\(String(format: "%.2f", entry.amount))"
+        })
+        ghostSubscriptions = ghostSubscriptions.filter { item in
+            let m = item.merchant.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let a = (item.amount * 100).rounded() / 100
+            let key = "\(m)|\(String(format: "%.2f", a))"
+            return !keys.contains(key)
+        }
+    }
+
+    /// Marks a ghost subscription as cancelled (or a false positive) and
+    /// removes it from the dashboard list immediately.
+    func markSubscriptionCancelled(_ item: GhostSubscriptionItem, reason: CancelledSubscriptionsStore.Reason) {
+        Task {
+            await CancelledSubscriptionsStore.shared.markCancelled(
+                merchant: item.merchant,
+                amount: item.amount,
+                reason: reason
+            )
+            await MainActor.run {
+                ghostSubscriptions.removeAll { $0.id == item.id }
+            }
         }
     }
 

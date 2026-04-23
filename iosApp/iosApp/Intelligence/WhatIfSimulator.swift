@@ -112,22 +112,40 @@ struct WhatIfSimulator {
             ))
         }
 
-        // 2. Cancel Ghost Subscriptions
-        let ghostSubs = await MainActor.run { store.ghostSubscriptions }
-        if !ghostSubs.isEmpty {
-            let ghostTotal = ghostSubs.reduce(0.0) { $0 + $1.amount }
+        // 2. Cancel Subscriptions — use SubscriptionManager (full detection) with ghost subs fallback
+        let activeSubs = await SubscriptionManager.shared.allSubscriptions().filter(\.isActive)
+        let subMonthly = await SubscriptionManager.shared.monthlyTotal()
+        if !activeSubs.isEmpty && subMonthly > 0 {
             scenarios.append(Scenario(
                 type: .cancelGhostSubs,
-                title: "Cancel \(ghostSubs.count) Unused Subscription\(ghostSubs.count == 1 ? "" : "s")",
-                description: "We detected \(ghostSubs.count) potential ghost subscriptions totaling \(NC.money(ghostTotal))/month.",
+                title: "Review \(activeSubs.count) Subscription\(activeSubs.count == 1 ? "" : "s")",
+                description: "\(activeSubs.count) active subscriptions totaling \(NC.money(subMonthly))/month. Cancelling unused ones could save \(NC.money(subMonthly * 0.3))+/month.",
                 icon: "repeat.circle.fill",
-                currentValue: ghostTotal,
-                projectedValue: 0,
-                monthlySavings: ghostTotal,
-                yearlySavings: ghostTotal * 12,
+                currentValue: subMonthly,
+                projectedValue: subMonthly * 0.7,
+                monthlySavings: subMonthly * 0.3,
+                yearlySavings: subMonthly * 0.3 * 12,
                 scoreImpact: 3,
                 pillar: "wealth"
             ))
+        } else {
+            // Fallback to ghost subs if SubscriptionManager has nothing
+            let ghostSubs = await MainActor.run { store.ghostSubscriptions }
+            if !ghostSubs.isEmpty {
+                let ghostTotal = ghostSubs.reduce(0.0) { $0 + $1.amount }
+                scenarios.append(Scenario(
+                    type: .cancelGhostSubs,
+                    title: "Cancel \(ghostSubs.count) Unused Subscription\(ghostSubs.count == 1 ? "" : "s")",
+                    description: "We detected \(ghostSubs.count) potential ghost subscriptions totaling \(NC.money(ghostTotal))/month.",
+                    icon: "repeat.circle.fill",
+                    currentValue: ghostTotal,
+                    projectedValue: 0,
+                    monthlySavings: ghostTotal,
+                    yearlySavings: ghostTotal * 12,
+                    scoreImpact: 3,
+                    pillar: "wealth"
+                ))
+            }
         }
 
         // 3. Cook More at Home

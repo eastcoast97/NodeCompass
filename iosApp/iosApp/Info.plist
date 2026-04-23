@@ -44,6 +44,17 @@
 	<string>1</string>
 	<key>GIDClientID</key>
 	<string>125462112839-nq5tmt5gasjbkc4r7uevlr31oi3rrt03.apps.googleusercontent.com</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>nflx</string>
+		<string>spotify</string>
+		<string>disneyplus</string>
+		<string>youtube</string>
+		<string>swiggy</string>
+		<string>zomato</string>
+		<string>mailto</string>
+		<string>itms-apps</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

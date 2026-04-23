@@ -66,12 +66,40 @@ struct DashboardView: View {
     @State private var learningStage: AppLearningStage.Stage = .warmingUp
     @State private var userFocus: AppLearningStage.UserFocus = .everything
     @State private var daysUntilNextStage: Int = 0
+    // Cross-pillar dashboard data
+    @State private var habitsDone: Int = 0
+    @State private var habitsTotal: Int = 0
+    @State private var activeSubCount: Int = 0
+    @State private var subMonthlyTotal: Double = 0
+    // Inline dashboard cards
+    @State private var activeChallenges: [ChallengeStore.Challenge] = []
+    @State private var budgetProgress: [BudgetStore.BudgetProgress] = []
+    @State private var savingsGoals: [SavingsGoalStore.SavingsProgress] = []
+    @State private var activeStreaks: [AchievementEngine.Streak] = []
+    @State private var earnedBadgeCount: Int = 0
+    // Sheet navigation
+    @State private var showHabits = false
+    @State private var showSubscriptions = false
+    @State private var showChallenges = false
+    @State private var showBudget = false
+    @State private var showSavingsGoals = false
     @ObservedObject private var profileStore = PersonalInfoStore.shared
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
+                    // Discovery tip for first-time users
+                    DiscoveryTip(
+                        id: "dashboard",
+                        icon: "sparkles",
+                        title: "Your Daily Pulse",
+                        message: "This is your command center. It learns your patterns across money, health, and habits — and gets smarter every day.",
+                        accentColor: NC.teal
+                    )
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
                     // Re-auth alert banner (persistent until resolved)
                     if !authAlert.issues.isEmpty {
                         reAuthBanner
@@ -81,8 +109,6 @@ struct DashboardView: View {
                     }
 
                     // Today's Pulse — the hero of the redesigned dashboard.
-                    // One synthesized sentence across all pillars. Replaces
-                    // the 8-button Quick Action grid.
                     if let pulse = todayPulse {
                         TodayPulseCard(
                             pulse: pulse,
@@ -91,22 +117,66 @@ struct DashboardView: View {
                         )
                         .padding(.horizontal)
                         .padding(.top, 8)
+                        .sectionAppear(delay: 0.1)
                     }
 
-                    // Life Score + Goals — only shown once the user has data
-                    // maturity (stage .patterns+). Prevents shaming users
-                    // with zero-score screens in week 1.
+                    // Life Score + Goals
                     if learningStage.showsLifeScore, let score = vm.lifeScore {
                         LifeScoreCard(score: score, goalProgress: vm.goalProgress, onGoalsTap: {
                             showGoals = true
                         })
                         .padding(.horizontal)
                         .padding(.top, 8)
+                        .sectionAppear(delay: 0.15)
                     }
 
-                    // Mood quick check-in — always available once tracking begins
+                    // Mood quick check-in
                     if learningStage.allowsNudges {
                         moodQuickRow
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .sectionAppear(delay: 0.2)
+                    }
+
+                    // Habits quick progress
+                    if habitsTotal > 0 {
+                        habitQuickBar
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .sectionAppear(delay: 0.25)
+                    }
+
+                    // Subscription awareness
+                    if activeSubCount > 0 {
+                        subscriptionQuickBar
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
+
+                    // Active Challenges — show ongoing challenges inline
+                    if !activeChallenges.isEmpty {
+                        activeChallengesCard
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
+
+                    // Budget snapshot — show top budget categories
+                    if !budgetProgress.isEmpty {
+                        budgetSnapshotCard
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
+
+                    // Savings goals progress
+                    if !savingsGoals.isEmpty {
+                        savingsSnapshotCard
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
+
+                    // Achievement streaks + badge count
+                    if !activeStreaks.isEmpty || earnedBadgeCount > 0 {
+                        achievementSnapshotCard
                             .padding(.horizontal)
                             .padding(.top, 8)
                     }
@@ -129,9 +199,12 @@ struct DashboardView: View {
                         .padding(.bottom, 24)
                 }
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle(greetingTitle)
+            .background(NC.bgBase)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    greetingHeader
+                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button { showProfile = true } label: {
                         ZStack(alignment: .topTrailing) {
@@ -215,6 +288,7 @@ struct DashboardView: View {
             Task {
                 await authAlert.check()
                 await refreshAdaptive()
+                await HabitAutoTracker.shared.evaluate()
                 nudges = await NudgeEngine.shared.generateNudges()
                 _ = await AchievementEngine.shared.evaluateToday()
             }
@@ -222,6 +296,7 @@ struct DashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task {
                 await authAlert.check()
+                await HabitAutoTracker.shared.evaluate()
                 await refreshAdaptive()
             }
         }
@@ -260,26 +335,9 @@ struct DashboardView: View {
             MoodCheckInView()
         }
         .overlay(alignment: .bottomTrailing) {
-            Button {
-                Haptic.light()
-                showCoach = true
-            } label: {
-                Image(systemName: "brain.head.profile")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(
-                        LinearGradient(
-                            colors: [.purple, .purple.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: Circle()
-                    )
-                    .shadow(color: .purple.opacity(0.3), radius: 8, y: 4)
-            }
-            .padding(.trailing, 20)
-            .padding(.bottom, 16)
+            AnimatedCoachButton { showCoach = true }
+                .padding(.trailing, 20)
+                .padding(.bottom, 16)
         }
         .sheet(isPresented: $showCoach) {
             LifeCoachView()
@@ -299,19 +357,60 @@ struct DashboardView: View {
                 .presentationDragIndicator(.visible)
                 .onDisappear { vm.load() }
         }
+        .sheet(isPresented: $showHabits) {
+            HabitTrackerView()
+                .onDisappear { Task { await refreshAdaptive() } }
+        }
+        .sheet(isPresented: $showSubscriptions) {
+            SubscriptionManagerView()
+        }
+        .sheet(isPresented: $showChallenges) {
+            ChallengesView()
+                .onDisappear { Task { await refreshAdaptive() } }
+        }
+        .sheet(isPresented: $showBudget) {
+            BudgetView()
+                .onDisappear { Task { await refreshAdaptive() } }
+        }
+        .sheet(isPresented: $showSavingsGoals) {
+            SavingsGoalsView()
+                .onDisappear { Task { await refreshAdaptive() } }
+        }
     }
 
     // MARK: - Greeting
 
-    private var greetingTitle: String {
+    private var greetingHeader: some View {
         let hour = Calendar.current.component(.hour, from: Date())
         let firstName = profileStore.info.name?.split(separator: " ").first.map(String.init) ?? ""
-        let name = firstName.isEmpty ? "" : ", \(firstName)"
-        switch hour {
-        case 5..<12: return "Good morning\(name)"
-        case 12..<17: return "Good afternoon\(name)"
-        case 17..<22: return "Good evening\(name)"
-        default: return "Good night\(name)"
+        let timeGreeting: String = {
+            switch hour {
+            case 5..<12: return "Good morning"
+            case 12..<17: return "Good afternoon"
+            case 17..<22: return "Good evening"
+            default: return "Good night"
+            }
+        }()
+
+        return HStack(spacing: 0) {
+            if firstName.isEmpty {
+                Text(timeGreeting)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.primary)
+            } else {
+                Text("\(timeGreeting), ")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(.secondary)
+                Text(firstName)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [NC.teal, Color(hex: "#6366F1")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+            }
         }
     }
 
@@ -335,8 +434,8 @@ struct DashboardView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
-                .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
+                .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
             }
             .buttonStyle(.plain)
         } else if let mood = vm.todayMood {
@@ -354,11 +453,343 @@ struct DashboardView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
-                .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
+                .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
             }
             .buttonStyle(.plain)
         }
+    }
+
+    // MARK: - Habit Quick Bar
+
+    private var habitQuickBar: some View {
+        Button {
+            Haptic.light()
+            showHabits = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(habitsDone == habitsTotal ? .green : .teal)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(habitsDone == habitsTotal ? "All habits done!" : "Habits")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text("\(habitsDone)/\(habitsTotal) completed")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                // Mini progress bar
+                GeometryReader { geo in
+                    let pct = habitsTotal > 0 ? CGFloat(habitsDone) / CGFloat(habitsTotal) : 0
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.teal.opacity(0.15))
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(habitsDone == habitsTotal ? Color.green : Color.teal)
+                            .frame(width: geo.size.width * pct)
+                    }
+                }
+                .frame(width: 60, height: 6)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Subscription Quick Bar
+
+    private var subscriptionQuickBar: some View {
+        Button {
+            Haptic.light()
+            showSubscriptions = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "repeat.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(Color(hex: "#EC4899"))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(activeSubCount) Subscription\(activeSubCount == 1 ? "" : "s")")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text("\(NC.money(subMonthlyTotal))/month")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Active Challenges Card
+
+    private var activeChallengesCard: some View {
+        Button {
+            Haptic.light()
+            showChallenges = true
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(.orange)
+                    Text("Active Challenges")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text("\(activeChallenges.count)")
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(.orange.opacity(0.12), in: Capsule())
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                ForEach(activeChallenges.prefix(2), id: \.id) { challenge in
+                    HStack(spacing: 10) {
+                        Image(systemName: challenge.type.icon)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .frame(width: 24, height: 24)
+                            .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(challenge.title)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text("\(Int(challenge.currentValue))/\(Int(challenge.targetValue)) \(challenge.type.unit)")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        // Mini progress ring
+                        let pct = challenge.targetValue > 0
+                            ? min(Double(challenge.currentValue) / Double(challenge.targetValue), 1.0)
+                            : 0
+                        ZStack {
+                            Circle()
+                                .stroke(Color.orange.opacity(0.15), lineWidth: 3)
+                                .frame(width: 28, height: 28)
+                            Circle()
+                                .trim(from: 0, to: pct)
+                                .stroke(Color.orange, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                                .frame(width: 28, height: 28)
+                                .rotationEffect(.degrees(-90))
+                            Text("\(Int(pct * 100))%")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Budget Snapshot Card
+
+    private var budgetSnapshotCard: some View {
+        Button {
+            Haptic.light()
+            showBudget = true
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "chart.pie.fill")
+                        .foregroundStyle(NC.teal)
+                    Text("Budget")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                ForEach(budgetProgress.prefix(3), id: \.id) { bp in
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(bp.category)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Text("\(NC.money(bp.spent)) of \(NC.money(bp.limit))")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        // Progress bar
+                        GeometryReader { geo in
+                            let pct = min(bp.percentage, 1.2)
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.gray.opacity(0.12))
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(bp.isOverBudget ? Color.red : (bp.percentage > 0.75 ? Color.yellow : NC.teal))
+                                    .frame(width: geo.size.width * min(CGFloat(pct), 1.0))
+                            }
+                        }
+                        .frame(width: 80, height: 6)
+
+                        Text("\(Int(bp.percentage * 100))%")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(bp.isOverBudget ? .red : .secondary)
+                            .frame(width: 30, alignment: .trailing)
+                    }
+                }
+            }
+            .padding(14)
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Savings Snapshot Card
+
+    private var savingsSnapshotCard: some View {
+        Button {
+            Haptic.light()
+            showSavingsGoals = true
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "banknote.fill")
+                        .foregroundStyle(.green)
+                    Text("Savings Goals")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+
+                ForEach(savingsGoals.prefix(2), id: \.goal.id) { sp in
+                    HStack(spacing: 10) {
+                        Image(systemName: sp.goal.icon)
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                            .frame(width: 24, height: 24)
+                            .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(sp.goal.name)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text("\(NC.money(sp.currentSaved)) of \(NC.money(sp.goal.targetAmount))")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        // Status badge
+                        Text(sp.isOnTrack ? "On Track" : "Behind")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(sp.isOnTrack ? .green : .orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background((sp.isOnTrack ? Color.green : Color.orange).opacity(0.12), in: Capsule())
+                    }
+                }
+            }
+            .padding(14)
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Achievement Snapshot Card
+
+    private var achievementSnapshotCard: some View {
+        Button {
+            Haptic.light()
+            showAchievements = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "trophy.fill")
+                    .font(.title3)
+                    .foregroundStyle(.orange)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    if !activeStreaks.isEmpty {
+                        let best = activeStreaks.max(by: { $0.currentDays < $1.currentDays })!
+                        Text("\(best.type.rawValue.replacingOccurrences(of: "_", with: " ").capitalized) streak: \(best.currentDays)d")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                    } else {
+                        Text("Achievements")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                    }
+
+                    if earnedBadgeCount > 0 {
+                        Text("\(earnedBadgeCount) badge\(earnedBadgeCount == 1 ? "" : "s") earned")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                // Streak flames for active streaks
+                HStack(spacing: 3) {
+                    ForEach(Array(activeStreaks.prefix(3).enumerated()), id: \.offset) { _, streak in
+                        HStack(spacing: 1) {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.orange)
+                            Text("\(streak.currentDays)")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Quick Actions
@@ -494,10 +925,6 @@ struct DashboardView: View {
                 }
                 .padding(NC.cardRadius)
                 .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.cardRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: NC.cardRadius)
-                        .stroke(.orange.opacity(0.2), lineWidth: 1)
-                )
             }
         }
     }
@@ -575,7 +1002,7 @@ struct DashboardView: View {
             } else {
                 CategoryChartCard(store: store, currencySymbol: vm.primaryCurrencySymbol)
                 if !vm.ghostSubscriptions.isEmpty {
-                    GhostSubscriptionsCard(subscriptions: vm.ghostSubscriptions)
+                    GhostSubscriptionsCard(subscriptions: vm.ghostSubscriptions, vm: vm)
                 }
                 if !vm.recentTransactions.isEmpty {
                     RecentActivityCard(title: "Recent Transactions", transactions: vm.recentTransactions)
@@ -843,6 +1270,30 @@ struct DashboardView: View {
         self.userFocus = await focus
         self.daysUntilNextStage = await days
         self.todayPulse = await pulse
+
+        // Cross-pillar data for dashboard cards
+        let progress = await HabitStore.shared.todayProgress()
+        self.habitsDone = progress.completed
+        self.habitsTotal = progress.total
+
+        let subs = await SubscriptionManager.shared.allSubscriptions()
+        self.activeSubCount = subs.filter(\.isActive).count
+        self.subMonthlyTotal = await SubscriptionManager.shared.monthlyTotal()
+
+        // Active challenges — refresh progress, then load
+        await ChallengeStore.shared.updateProgress()
+        self.activeChallenges = await ChallengeStore.shared.activeChallenges()
+
+        // Budget progress
+        self.budgetProgress = await BudgetStore.shared.progressForAll()
+
+        // Savings goals
+        self.savingsGoals = await SavingsGoalStore.shared.progressForAll()
+            .filter { !$0.goal.isCompleted }
+
+        // Achievement streaks + badge count
+        self.activeStreaks = await AchievementEngine.shared.activeStreaks()
+        self.earnedBadgeCount = await AchievementEngine.shared.allAchievements().count
     }
 }
 
@@ -898,7 +1349,7 @@ private struct TodayPulseCard: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .foregroundStyle(.secondary)
-                            .background(Color(.systemGray6), in: Capsule())
+                            .background(NC.bgElevated, in: Capsule())
                         }
                     }
                 }
@@ -921,8 +1372,8 @@ private struct TodayPulseCard: View {
             }
         }
         .padding(14)
-        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
-        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+        .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Today's pulse: \(pulse.headline)")
         .accessibilityHint(pulse.detail ?? "")
@@ -994,10 +1445,13 @@ private struct WealthHeroCard: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            LinearGradient(colors: [NC.deepNavy, NC.slate], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [Color(hex: "#0C1A2A"), Color(hex: "#0A2D2D"), NC.teal.opacity(0.15)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
         .clipShape(RoundedRectangle(cornerRadius: NC.heroRadius, style: .continuous))
-        .shadow(color: NC.deepNavy.opacity(0.25), radius: 12, y: 6)
     }
 
     private var monthName: String {
@@ -1526,12 +1980,12 @@ struct InsightCard: View {
                     .font(.caption2.bold())
                     .foregroundStyle(.tertiary)
                     .frame(width: 22, height: 22)
-                    .background(Color(.systemGray5), in: Circle())
+                    .background(NC.bgElevated, in: Circle())
             }
         }
         .padding(14)
-        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
-        .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+        .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+
     }
 
     private var iconColor: Color {
@@ -1616,7 +2070,7 @@ private struct CategoryChartCard: View {
                             .background(
                                 selectedPeriod == period
                                     ? AnyShapeStyle(NC.teal)
-                                    : AnyShapeStyle(Color(.systemGray5)),
+                                    : AnyShapeStyle(NC.bgElevated),
                                 in: Capsule()
                             )
                     }
@@ -1671,6 +2125,9 @@ private struct CategoryChartCard: View {
 
 private struct GhostSubscriptionsCard: View {
     let subscriptions: [GhostSubscriptionItem]
+    @ObservedObject var vm: DashboardViewModel
+
+    @State private var selectedForAction: GhostSubscriptionItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1686,21 +2143,75 @@ private struct GhostSubscriptionsCard: View {
                     .clipShape(Capsule())
             }
             ForEach(subscriptions) { sub in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(sub.merchant).font(.subheadline).fontWeight(.medium)
-                        Text("\(sub.occurrences) recurring charges").font(.caption).foregroundStyle(.secondary)
+                Button {
+                    Haptic.light()
+                    selectedForAction = sub
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(sub.merchant).font(.subheadline).fontWeight(.medium)
+                                .foregroundStyle(NC.textPrimary)
+                            Text("\(sub.occurrences) recurring charges")
+                                .font(.caption).foregroundStyle(NC.textSecondary)
+                        }
+                        Spacer()
+                        Text(sub.formattedAmount)
+                            .font(.subheadline).fontWeight(.bold).foregroundStyle(NC.spend)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(NC.textTertiary)
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
                     }
-                    Spacer()
-                    Text(sub.formattedAmount).font(.subheadline).fontWeight(.bold).foregroundStyle(NC.spend)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
                 }
-                .padding(.vertical, 4)
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        SmartCancellationService.cancel(merchant: sub.merchant)
+                    } label: {
+                        Label(
+                            SmartCancellationService.actionLabel(for: sub.merchant),
+                            systemImage: "arrow.up.right.square"
+                        )
+                    }
+                    Button {
+                        vm.markSubscriptionCancelled(sub, reason: .cancelled)
+                    } label: { Label("I've cancelled it", systemImage: "checkmark.circle") }
+                    Button {
+                        vm.markSubscriptionCancelled(sub, reason: .notASubscription)
+                    } label: { Label("Not a subscription", systemImage: "xmark.circle") }
+                }
             }
         }
         .padding()
         .background(NC.warning.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous).stroke(NC.warning.opacity(0.2), lineWidth: 1))
+        .confirmationDialog(
+            selectedForAction.map { "Manage \($0.merchant)" } ?? "Manage subscription",
+            isPresented: Binding(
+                get: { selectedForAction != nil },
+                set: { if !$0 { selectedForAction = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: selectedForAction
+        ) { sub in
+            // Label is merchant-specific: "Open Netflix app", "Open Claude
+            // cancel page", "Email support", or the Google fallback.
+            Button(SmartCancellationService.actionLabel(for: sub.merchant)) {
+                SmartCancellationService.cancel(merchant: sub.merchant)
+            }
+            Button("I've cancelled it") {
+                vm.markSubscriptionCancelled(sub, reason: .cancelled)
+            }
+            Button("Not a subscription", role: .destructive) {
+                vm.markSubscriptionCancelled(sub, reason: .notASubscription)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { sub in
+            Text("\(sub.formattedAmount) · \(sub.occurrences) charges")
+        }
     }
 }
 
@@ -1718,7 +2229,7 @@ private struct LifeScoreCard: View {
                 // Animated ring
                 ZStack {
                     Circle()
-                        .stroke(Color(.systemGray5), lineWidth: 6)
+                        .stroke(NC.bgElevated, lineWidth: 6)
                         .frame(width: 64, height: 64)
                     Circle()
                         .trim(from: 0, to: Double(score.total) / 100.0)
@@ -1780,7 +2291,7 @@ private struct LifeScoreCard: View {
             }
         }
         .padding(NC.hPad)
-        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
     }
 
     private var scoreColor: Color {
@@ -1811,7 +2322,7 @@ private struct PillarPill: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Color(.systemGray5))
+                        .fill(NC.bgElevated)
                         .frame(height: 3)
                     RoundedRectangle(cornerRadius: 2)
                         .fill(color)
@@ -1840,7 +2351,7 @@ private struct MiniGoalRow: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(Color(.systemGray5))
+                        .fill(NC.bgElevated)
                         .frame(height: 4)
                     RoundedRectangle(cornerRadius: 2)
                         .fill(item.isOnTrack ? .green : .orange)
@@ -1944,8 +2455,8 @@ private struct QuickActionButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
+            .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+
         }
         .buttonStyle(.plain)
     }

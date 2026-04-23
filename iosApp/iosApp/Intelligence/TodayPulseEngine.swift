@@ -77,6 +77,12 @@ actor TodayPulseEngine {
         let homeCooked = foodEntries.filter { !$0.items.isEmpty && $0.source != .emailOrder }.count
         let delivered = foodEntries.filter { $0.source == .emailOrder }.count
 
+        // Mood
+        let todayMood = await MoodStore.shared.todaysMood()
+
+        // Habits
+        let habitProgress = await HabitStore.shared.todayProgress()
+
         // Build fragments
         var fragments: [TodayPulse.Fragment] = []
         var positiveSignals = 0
@@ -168,6 +174,44 @@ actor TodayPulseEngine {
                 text: "\(homeCooked + delivered) meal\(homeCooked + delivered == 1 ? "" : "s") logged",
                 pillar: "food"
             ))
+        }
+
+        // Mood signal
+        if let mood = todayMood {
+            let moodLabel = mood.mood.label
+            fragments.append(.init(
+                icon: "face.smiling",
+                text: "Feeling \(moodLabel)",
+                pillar: "mind"
+            ))
+            if mood.mood.rawValue >= 4 { positiveSignals += 1 }
+            else if mood.mood.rawValue <= 2 { concernSignals += 1 }
+        }
+
+        // Habits signal
+        if habitProgress.total > 0 {
+            let done = habitProgress.completed
+            let total = habitProgress.total
+            if done == total {
+                fragments.append(.init(
+                    icon: "checkmark.circle.fill",
+                    text: "All \(total) habits done",
+                    pillar: "mind"
+                ))
+                positiveSignals += 1
+            } else if done > 0 {
+                fragments.append(.init(
+                    icon: "checkmark.circle",
+                    text: "\(done)/\(total) habits",
+                    pillar: "mind"
+                ))
+            } else {
+                fragments.append(.init(
+                    icon: "circle.dotted",
+                    text: "\(total) habits pending",
+                    pillar: "mind"
+                ))
+            }
         }
 
         // Build headline from the strongest signals

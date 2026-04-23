@@ -115,7 +115,7 @@ struct LocationAnalyzer {
                     let placeName = visit.loc.resolvedPlaceName ?? "a restaurant"
                     insights.append(Insight(
                         type: .locationCorrelation,
-                        title: "Spent $\(String(format: "%.0f", txn.txn.amount)) near \(placeName)",
+                        title: "Spent \(NC.currencySymbol)\(String(format: "%.0f", txn.txn.amount)) near \(placeName)",
                         body: "\(txn.txn.merchant) charge matches your visit to \(placeName).",
                         priority: .low,
                         category: "location",

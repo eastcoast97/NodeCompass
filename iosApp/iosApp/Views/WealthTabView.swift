@@ -15,6 +15,9 @@ struct WealthTabView: View {
     // Async-loaded data
     @State private var budgetProgress: [BudgetStore.BudgetProgress] = []
     @State private var savingsProgress: [SavingsGoalStore.SavingsProgress] = []
+    @State private var activeSubscriptions: [SubscriptionManager.Subscription] = []
+    @State private var subscriptionMonthly: Double = 0
+    @State private var topSpendingPlaces: [(name: String, spent: Double, tag: String?)] = []
 
     // MARK: - Computed Properties
 
@@ -68,17 +71,34 @@ struct WealthTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    DiscoveryTip(
+                        id: "wealth",
+                        icon: NC.currencyIcon,
+                        title: "Your Financial Brain",
+                        message: "Every transaction is categorized automatically. Subscriptions, patterns, and budget insights surface over time.",
+                        accentColor: NC.teal
+                    )
+
                     spendingSummaryCard
+                        .sectionAppear(delay: 0.05)
                     quickActionsRow
+                        .sectionAppear(delay: 0.1)
+                    subscriptionPreviewSection
+                        .sectionAppear(delay: 0.15)
                     recentTransactionsSection
+                        .sectionAppear(delay: 0.2)
+                    topSpendingPlacesSection
+                        .sectionAppear(delay: 0.25)
                     budgetProgressSection
+                        .sectionAppear(delay: 0.3)
                     savingsGoalsPreview
+                        .sectionAppear(delay: 0.35)
                 }
                 .padding(.horizontal, NC.hPad)
                 .padding(.top, 8)
                 .padding(.bottom, 40)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(NC.bgBase)
             .navigationTitle("Wealth")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -160,7 +180,7 @@ struct WealthTabView: View {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color(.systemGray5))
+                                .fill(NC.bgElevated)
                                 .frame(height: 6)
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(progressBarColor)
@@ -175,10 +195,6 @@ struct WealthTabView: View {
             }
         }
         .card()
-        .overlay(
-            RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous)
-                .strokeBorder(NC.teal.opacity(0.15), lineWidth: 1)
-        )
     }
 
     private func summaryFigure(label: String, value: String, color: Color, prefix: String = "") -> some View {
@@ -363,7 +379,7 @@ struct WealthTabView: View {
             // Progress ring
             ZStack {
                 Circle()
-                    .stroke(Color(.systemGray5), lineWidth: 5)
+                    .stroke(NC.bgElevated, lineWidth: 5)
                 Circle()
                     .trim(from: 0, to: min(budget.percentage, 1.0))
                     .stroke(
@@ -461,7 +477,7 @@ struct WealthTabView: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3)
-                            .fill(Color(.systemGray5))
+                            .fill(NC.bgElevated)
                             .frame(height: 5)
                         RoundedRectangle(cornerRadius: 3)
                             .fill(NC.teal)
@@ -476,6 +492,143 @@ struct WealthTabView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            }
+        }
+    }
+
+    // MARK: - Subscription Preview (inline)
+
+    @ViewBuilder
+    private var subscriptionPreviewSection: some View {
+        if !activeSubscriptions.isEmpty {
+            VStack(spacing: 12) {
+                HStack {
+                    Label("Subscriptions", systemImage: "repeat")
+                        .font(.headline)
+                    Spacer()
+                    Text(NC.money(subscriptionMonthly) + "/mo")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(hex: "#EC4899"))
+                    Button {
+                        Haptic.light()
+                        showSubscriptions = true
+                    } label: {
+                        Text("Manage")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(NC.teal)
+                    }
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(Array(activeSubscriptions.prefix(4).enumerated()), id: \.element.id) { index, sub in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
+                                    .fill(Color(hex: "#EC4899").opacity(0.12))
+                                    .frame(width: NC.iconSize, height: NC.iconSize)
+                                Image(systemName: sub.frequency.icon)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color(hex: "#EC4899"))
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(sub.merchant)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                                Text(sub.frequency.label)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(NC.money(sub.amount))
+                                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                                    .foregroundStyle(NC.spend)
+                                if let next = sub.nextChargeDate {
+                                    Text("Next: \(relativeDate(next))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+
+                        if index < min(activeSubscriptions.count, 4) - 1 {
+                            Divider()
+                                .padding(.leading, NC.dividerIndent)
+                        }
+                    }
+                }
+                .card(padding: 0)
+
+                if activeSubscriptions.count > 4 {
+                    Button {
+                        Haptic.light()
+                        showSubscriptions = true
+                    } label: {
+                        Text("+\(activeSubscriptions.count - 4) more subscriptions")
+                            .font(.caption)
+                            .foregroundStyle(NC.teal)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Top Spending Places (Place Intelligence → Wealth)
+
+    @ViewBuilder
+    private var topSpendingPlacesSection: some View {
+        if !topSpendingPlaces.isEmpty {
+            VStack(spacing: 12) {
+                HStack {
+                    Label("Where You Spend", systemImage: "mappin.and.ellipse")
+                        .font(.headline)
+                    Spacer()
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(Array(topSpendingPlaces.prefix(5).enumerated()), id: \.offset) { index, place in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(NC.teal.opacity(0.12))
+                                    .frame(width: 32, height: 32)
+                                Text("\(index + 1)")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(NC.teal)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(place.name)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                                if let tag = place.tag {
+                                    Text(tag.replacingOccurrences(of: "_", with: " ").capitalized)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            Text(NC.money(place.spent))
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(NC.spend)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+
+                        if index < min(topSpendingPlaces.count, 5) - 1 {
+                            Divider()
+                                .padding(.leading, NC.dividerIndent)
+                        }
+                    }
+                }
+                .card(padding: 0)
             }
         }
     }
@@ -517,8 +670,45 @@ struct WealthTabView: View {
     private func loadAsyncData() async {
         async let b = BudgetStore.shared.progressForAll()
         async let s = SavingsGoalStore.shared.progressForAll()
+        async let subs = SubscriptionManager.shared.allSubscriptions()
+        async let monthly = SubscriptionManager.shared.monthlyTotal()
+
         budgetProgress = await b
         savingsProgress = await s
+
+        let allSubs = await subs
+        activeSubscriptions = allSubs.filter(\.isActive)
+        subscriptionMonthly = await monthly
+
+        // Load top spending places from Place Intelligence
+        await loadTopSpendingPlaces()
+    }
+
+    private func loadTopSpendingPlaces() async {
+        let profile = await UserProfileStore.shared.currentProfile()
+        let transactions = store.transactions
+
+        // Build spending per frequent location
+        var places: [(name: String, spent: Double, tag: String?)] = []
+        for loc in profile.frequentLocations {
+            guard let label = loc.label, !label.isEmpty, label.lowercased() != "unknown" else { continue }
+            guard loc.pillarTags?.contains("wealth") == true else { continue }
+
+            let placeName = label.lowercased()
+            let spent = transactions
+                .filter { $0.type.uppercased() != "CREDIT" }
+                .filter { txn in
+                    let merchant = txn.merchant.lowercased()
+                    return merchant.contains(placeName) || placeName.contains(merchant)
+                }
+                .reduce(0) { $0 + $1.amount }
+
+            if spent > 0 {
+                places.append((name: label, spent: spent, tag: loc.behaviorTag))
+            }
+        }
+
+        topSpendingPlaces = places.sorted { $0.spent > $1.spent }
     }
 }
 

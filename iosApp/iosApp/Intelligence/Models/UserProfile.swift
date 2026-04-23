@@ -102,6 +102,28 @@ struct FrequentLocation: Codable, Identifiable {
     var averageDurationMinutes: Double
     var lastVisit: Date
 
+    // MARK: - Enriched Place Intelligence (from Google Places)
+
+    var googlePlaceId: String?        // For future detail lookups without re-searching
+    var address: String?              // Full street address
+    var googleTypes: [String]?        // Raw Google types: ["cannabis_store", "store", "point_of_interest"]
+    var priceLevel: Int?              // 0=free, 1-4 (cheap→expensive)
+    var rating: Double?               // 1.0 - 5.0 Google rating
+    var editorialSummary: String?     // Google's description of the place
+    var popularItems: [String]?       // Extracted from reviews (food/drink/service)
+
+    // MARK: - Behavioral Intelligence
+
+    var pillarTags: [String]?         // Which pillars this place affects: ["wealth", "health", "mind"]
+    var behaviorTag: String?          // AI-inferred: "routine_coffee", "weekend_leisure", "impulse_buy", "fitness"
+    var typicalVisitDay: Int?         // Most common day (1=Sun...7=Sat)
+    var typicalVisitHour: Int?        // Most common hour (0-23)
+    var totalSpent: Double?           // Correlated from transactions
+
+    // MARK: - Visit History
+
+    var visitDates: [Date]?           // Last N visit timestamps for pattern detection
+
     /// Distance in meters to another coordinate.
     func distance(to lat: Double, _ lon: Double) -> Double {
         let dLat = (lat - latitude) * .pi / 180

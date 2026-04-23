@@ -324,7 +324,7 @@ struct HealthAnalyzer {
                    category.contains("smoothie") || category.contains("juice") {
                     insights.append(Insight(
                         type: .locationCorrelation,
-                        title: "$\(String(format: "%.0f", txn.txn.amount)) after \(workout.workout.activityType)",
+                        title: "\(NC.currencySymbol)\(String(format: "%.0f", txn.txn.amount)) after \(workout.workout.activityType)",
                         body: "\(txn.txn.merchant) charge right after your \(Int(workout.workout.durationMinutes)) min \(workout.workout.activityType.lowercased()) session.",
                         priority: .low,
                         category: "health",
@@ -387,7 +387,7 @@ struct HealthAnalyzer {
         return Insight(
             type: .healthPattern,
             title: "Sedentary days = more food spending",
-            body: "On low-activity days, you spend \(multiplier)x more on food delivery. Active days: $\(Int(avgFoodHigh)) avg, lazy days: $\(Int(avgFoodLow)) avg.",
+            body: "On low-activity days, you spend \(multiplier)x more on food delivery. Active days: \(NC.currencySymbol)\(Int(avgFoodHigh)) avg, lazy days: \(NC.currencySymbol)\(Int(avgFoodLow)) avg.",
             priority: .medium,
             category: "health"
         )

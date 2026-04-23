@@ -6,21 +6,78 @@ struct LocationHeatmapView: View {
     @StateObject private var vm = LocationHeatmapViewModel()
     @State private var selectedPlace: LocationHeatmapViewModel.PlaceCluster?
     @State private var showDetail = false
+    @State private var selectedFilter: PlaceCategoryFilter = .all
+
+    enum PlaceCategoryFilter: String, CaseIterable {
+        case all = "All"
+        case restaurant = "Food & Drink"
+        case store = "Shopping"
+        case gym = "Fitness"
+        case medical = "Medical"
+        case park = "Outdoors"
+        case transit = "Transit"
+        case education = "Education"
+        case office = "Work"
+        case other = "Other"
+
+        var icon: String {
+            switch self {
+            case .all: return "map.fill"
+            case .restaurant: return "fork.knife"
+            case .store: return "bag.fill"
+            case .gym: return "figure.run"
+            case .medical: return "cross.fill"
+            case .park: return "leaf.fill"
+            case .transit: return "tram.fill"
+            case .education: return "book.fill"
+            case .office: return "building.2.fill"
+            case .other: return "mappin.circle.fill"
+            }
+        }
+
+        func matches(_ category: String?) -> Bool {
+            guard self != .all else { return true }
+            guard let cat = category?.lowercased() else { return self == .other }
+            switch self {
+            case .all: return true
+            case .restaurant: return ["restaurant", "cafe", "food", "bar"].contains(cat)
+            case .store: return ["store", "shopping"].contains(cat)
+            case .gym: return ["gym", "fitness"].contains(cat)
+            case .medical: return ["medical", "health"].contains(cat)
+            case .park: return ["park", "outdoor"].contains(cat)
+            case .transit: return ["transit", "transport"].contains(cat)
+            case .education: return ["education"].contains(cat)
+            case .office: return ["office", "work"].contains(cat)
+            case .other: return !["restaurant", "cafe", "food", "bar", "store", "shopping",
+                                   "gym", "fitness", "medical", "health", "park", "outdoor",
+                                   "transit", "transport", "education", "office", "work"].contains(cat)
+            }
+        }
+    }
+
+    private var filteredPlaces: [LocationHeatmapViewModel.PlaceCluster] {
+        vm.places.filter { selectedFilter.matches($0.category) }
+    }
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                // Map
-                Map(position: $vm.cameraPosition, selection: $selectedPlace) {
-                    ForEach(vm.places) { place in
-                        Annotation(place.name, coordinate: place.coordinate) {
-                            PlacePin(place: place, isSelected: selectedPlace?.id == place.id)
+                VStack(spacing: 0) {
+                    // Category filter chips
+                    categoryFilterBar
+                        .padding(.top, 4)
+
+                    // Map
+                    Map(position: $vm.cameraPosition, selection: $selectedPlace) {
+                        ForEach(filteredPlaces) { place in
+                            Annotation(place.name, coordinate: place.coordinate) {
+                                PlacePin(place: place, isSelected: selectedPlace?.id == place.id)
+                            }
+                            .tag(place)
                         }
-                        .tag(place)
                     }
+                    .mapStyle(.standard(pointsOfInterest: .excludingAll))
                 }
-                .mapStyle(.standard(pointsOfInterest: .excludingAll))
-                .ignoresSafeArea(edges: .top)
 
                 // Bottom panel
                 VStack(spacing: 0) {
@@ -45,17 +102,18 @@ struct LocationHeatmapView: View {
         VStack(spacing: 12) {
             // Stats row
             HStack(spacing: 0) {
-                statColumn(value: "\(vm.places.count)", label: "Places", icon: "mappin.circle.fill", color: .blue)
+                statColumn(value: "\(filteredPlaces.count)", label: "Places", icon: "mappin.circle.fill", color: .blue)
                 Divider().frame(height: 30)
-                statColumn(value: "\(vm.totalVisits)", label: "Visits", icon: "figure.walk", color: .orange)
+                statColumn(value: "\(filteredPlaces.reduce(0) { $0 + $1.visitCount })", label: "Visits", icon: "figure.walk", color: .orange)
                 Divider().frame(height: 30)
-                statColumn(value: NC.money(vm.totalSpent), label: "Spent", icon: NC.currencyIconCircle, color: NC.teal)
+                statColumn(value: NC.money(filteredPlaces.reduce(0) { $0 + $1.totalSpent }), label: "Spent", icon: NC.currencyIconCircle, color: NC.teal)
             }
 
             // Top places list
-            if !vm.topPlaces.isEmpty {
+            let topFiltered = filteredPlaces.sorted { $0.visitCount > $1.visitCount }
+            if !topFiltered.isEmpty {
                 VStack(spacing: 8) {
-                    ForEach(vm.topPlaces.prefix(3)) { place in
+                    ForEach(topFiltered.prefix(3)) { place in
                         Button {
                             selectedPlace = place
                             vm.focusOn(place)
@@ -71,9 +129,16 @@ struct LocationHeatmapView: View {
                                     Text(place.name)
                                         .font(.caption.bold())
                                         .foregroundStyle(.primary)
-                                    Text("\(place.visitCount) visits")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                                    HStack(spacing: 4) {
+                                        Text("\(place.visitCount) visits")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        if let tag = place.behaviorTag {
+                                            Text("\u{2022} \(formatBehaviorTag(tag))")
+                                                .font(.caption2)
+                                                .foregroundStyle(behaviorTagColor(tag))
+                                        }
+                                    }
                                 }
 
                                 Spacer()
@@ -167,15 +232,73 @@ struct LocationHeatmapView: View {
                 }
             }
 
-            // Last visit
-            if let lastVisit = place.lastVisit {
+            // Behavior tag + pillar badges
+            if place.behaviorTag != nil || !(place.pillarTags ?? []).isEmpty {
                 HStack(spacing: 6) {
+                    if let tag = place.behaviorTag {
+                        Text(formatBehaviorTag(tag))
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(behaviorTagColor(tag), in: Capsule())
+                    }
+                    ForEach(place.pillarTags ?? [], id: \.self) { pillar in
+                        Image(systemName: pillarIcon(pillar))
+                            .font(.caption2)
+                            .foregroundStyle(pillarColor(pillar))
+                    }
+                    Spacer()
+                    if let rating = place.rating {
+                        HStack(spacing: 2) {
+                            Image(systemName: "star.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                            Text(String(format: "%.1f", rating))
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            // Editorial summary
+            if let summary = place.editorialSummary {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            // Popular items
+            if let items = place.popularItems, !items.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                    Text(items.prefix(3).joined(separator: " \u{2022} "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            // Last visit + address
+            HStack(spacing: 6) {
+                if let lastVisit = place.lastVisit {
                     Image(systemName: "clock")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text("Last visit: \(lastVisit, style: .relative) ago")
+                    Text("\(lastVisit, style: .relative) ago")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if let address = place.address {
+                    Spacer()
+                    Text(address)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
             }
         }
@@ -226,6 +349,83 @@ struct LocationHeatmapView: View {
         case "home", "residence": return .orange
         default: return .blue
         }
+    }
+
+    // MARK: - Category Filter Bar
+
+    private var categoryFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(PlaceCategoryFilter.allCases, id: \.rawValue) { filter in
+                    let isActive = selectedFilter == filter
+                    let count = vm.places.filter { filter.matches($0.category) }.count
+                    if filter == .all || count > 0 {
+                        Button {
+                            Haptic.light()
+                            withAnimation(.spring(response: 0.3)) {
+                                selectedFilter = filter
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: filter.icon)
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text(filter == .all ? "All" : filter.rawValue)
+                                    .font(.caption2.weight(.medium))
+                                if filter != .all {
+                                    Text("\(count)")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(isActive ? .white.opacity(0.8) : .secondary)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(isActive ? categoryColor(filter == .all ? nil : filter.rawValue.lowercased()) : Color(.systemGray6),
+                                        in: Capsule())
+                            .foregroundStyle(isActive ? .white : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, NC.hPad)
+        }
+    }
+
+    // MARK: - Intelligence Helpers
+
+    private func pillarIcon(_ pillar: String) -> String {
+        switch pillar {
+        case "wealth": return NC.currencyIconCircle
+        case "health": return "heart.fill"
+        case "mind": return "brain.head.profile"
+        default: return "circle.fill"
+        }
+    }
+
+    private func pillarColor(_ pillar: String) -> Color {
+        switch pillar {
+        case "wealth": return NC.teal
+        case "health": return .pink
+        case "mind": return .purple
+        default: return .gray
+        }
+    }
+
+    private func formatBehaviorTag(_ tag: String) -> String {
+        tag.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private func behaviorTagColor(_ tag: String) -> Color {
+        if tag.contains("routine") { return .blue }
+        if tag.contains("coffee") || tag.contains("breakfast") { return .brown }
+        if tag.contains("fitness") || tag.contains("outdoor") { return .pink }
+        if tag.contains("dining") || tag.contains("lunch") || tag.contains("dinner") { return NC.food }
+        if tag.contains("shopping") || tag.contains("grocery") { return .purple }
+        if tag.contains("impulse") { return NC.warning }
+        if tag.contains("dispensary") || tag.contains("liquor") { return .green }
+        if tag.contains("commute") || tag.contains("work") { return .blue }
+        if tag.contains("nightlife") { return .indigo }
+        return .gray
     }
 }
 
@@ -285,6 +485,15 @@ class LocationHeatmapViewModel: ObservableObject {
         let avgDuration: String
         let lastVisit: Date?
 
+        // Enriched Place Intelligence
+        let behaviorTag: String?
+        let pillarTags: [String]?
+        let rating: Double?
+        let priceLevel: Int?
+        let editorialSummary: String?
+        let popularItems: [String]?
+        let address: String?
+
         func hash(into hasher: inout Hasher) { hasher.combine(id) }
         static func == (lhs: PlaceCluster, rhs: PlaceCluster) -> Bool { lhs.id == rhs.id }
     }
@@ -337,7 +546,14 @@ class LocationHeatmapViewModel: ObservableObject {
                 visitCount: loc.visitCount,
                 totalSpent: spent,
                 avgDuration: durationStr,
-                lastVisit: loc.lastVisit
+                lastVisit: loc.lastVisit,
+                behaviorTag: loc.behaviorTag,
+                pillarTags: loc.pillarTags,
+                rating: loc.rating,
+                priceLevel: loc.priceLevel,
+                editorialSummary: loc.editorialSummary,
+                popularItems: loc.popularItems,
+                address: loc.address
             )
         }
     }

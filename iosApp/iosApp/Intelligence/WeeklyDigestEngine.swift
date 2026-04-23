@@ -157,7 +157,7 @@ actor WeeklyDigestEngine {
         // --- HIGHLIGHTS ---
         var highlights: [String] = []
         if scoreTrend > 3 {
-            highlights.append("Life Score up \(scoreTrend) points from last week 📈")
+            highlights.append("Life Score up \(scoreTrend) points from last week")
         } else if scoreTrend < -3 {
             highlights.append("Life Score dipped \(abs(scoreTrend)) points — room to bounce back")
         }
@@ -166,6 +166,17 @@ actor WeeklyDigestEngine {
         } else if spentChange > 20 {
             highlights.append("Spending up \(Int(spentChange))% — \(topCat?.key ?? "various") led the charge")
         }
+
+        // Subscription cost awareness
+        let subMonthly = await SubscriptionManager.shared.monthlyTotal()
+        if subMonthly > 0 && thisWeekSpend > 0 {
+            let subWeekly = subMonthly / 4.33
+            let subPct = Int(subWeekly / thisWeekSpend * 100)
+            if subPct >= 20 {
+                highlights.append("Subscriptions account for ~\(subPct)% of weekly spend")
+            }
+        }
+
         if totalWorkouts >= 4 {
             highlights.append("Crushed it with \(totalWorkouts) workouts this week")
         } else if totalWorkouts == 0 {
@@ -177,8 +188,33 @@ actor WeeklyDigestEngine {
         if avgSteps >= 10000 {
             highlights.append("Averaging \(avgSteps.formatted()) steps — above 10K target")
         }
-        // Cap at 5 highlights
-        let finalHighlights = Array(highlights.prefix(5))
+
+        // Place intelligence highlight — top spending place
+        let profile = await UserProfileStore.shared.currentProfile()
+        let topSpendingPlace = profile.frequentLocations
+            .filter { $0.pillarTags?.contains("wealth") == true && $0.label != nil }
+            .sorted { ($0.totalSpent ?? 0) > ($1.totalSpent ?? 0) }
+            .first
+        if let place = topSpendingPlace, let name = place.label, (place.totalSpent ?? 0) > 0 {
+            highlights.append("Top spending spot: \(name) (\(place.visitCount) visits)")
+        }
+
+        // Routine consistency highlight
+        let routinePlaces = profile.frequentLocations.filter { $0.behaviorTag?.hasPrefix("routine") == true }
+        if routinePlaces.count >= 3 {
+            highlights.append("Maintained \(routinePlaces.count) regular routines")
+        }
+
+        // Mood highlight
+        let weekMood = await MoodStore.shared.averageMood(days: 7)
+        if weekMood >= 4.0 {
+            highlights.append("Great week mood-wise — averaging \(String(format: "%.1f", weekMood))/5")
+        } else if weekMood > 0 && weekMood <= 2.5 {
+            highlights.append("Tough week mood-wise — be gentle with yourself")
+        }
+
+        // Cap at 6 highlights
+        let finalHighlights = Array(highlights.prefix(6))
 
         let digest = WeeklyDigest(
             weekKey: weekKey,

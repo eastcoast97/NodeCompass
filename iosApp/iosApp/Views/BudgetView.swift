@@ -13,29 +13,58 @@ struct BudgetView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Hero ring
-                    overviewCard
+            List {
+                // Hero ring
+                overviewCard
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
 
-                    // Category budgets
-                    if budgetProgress.isEmpty && !isLoading {
-                        emptyBudgetState
-                    } else {
-                        budgetList
+                // Category budgets
+                if budgetProgress.isEmpty && !isLoading {
+                    emptyBudgetState
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                } else {
+                    ForEach(budgetProgress) { progress in
+                        BudgetCard(progress: progress, onDelete: {
+                            Task {
+                                await BudgetStore.shared.deleteBudget(id: progress.id)
+                                await reload()
+                            }
+                        })
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task {
+                                    await BudgetStore.shared.deleteBudget(id: progress.id)
+                                    await reload()
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
-
-                    // Add budget button
-                    addBudgetButton
-
-                    // Bill calendar
-                    billCalendarSection
                 }
-                .padding(.horizontal, NC.hPad)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+
+                // Add budget button
+                addBudgetButton
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+
+                // Bill calendar
+                billCalendarSection
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
             }
+            .listStyle(.plain)
             .background(Color(.systemGroupedBackground))
+            .scrollContentBackground(.hidden)
             .navigationTitle("Budgets")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showAddBudget) {
@@ -119,21 +148,6 @@ struct BudgetView: View {
     private var overallPercentage: Double {
         guard totalBudget > 0 else { return 0 }
         return totalSpent / totalBudget
-    }
-
-    // MARK: - Budget List
-
-    private var budgetList: some View {
-        VStack(spacing: 12) {
-            ForEach(budgetProgress) { progress in
-                BudgetCard(progress: progress, onDelete: {
-                    Task {
-                        await BudgetStore.shared.deleteBudget(id: progress.id)
-                        await reload()
-                    }
-                })
-            }
-        }
     }
 
     // MARK: - Empty State

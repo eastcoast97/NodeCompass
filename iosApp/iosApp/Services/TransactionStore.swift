@@ -356,18 +356,31 @@ class TransactionStore: ObservableObject {
     }
 
     /// Estimate recurring charge frequency from actual timestamp intervals.
-    /// Replaces the earlier hardcoded "Monthly" that ignored engine output.
+    /// Uses the full date span and individual intervals to classify correctly.
+    /// Monthly subscriptions with only a few data points default to "Monthly"
+    /// rather than being misclassified as "Weekly" from short-span math.
     private func estimateGhostFrequency(txns: [StoredTransaction]) -> String {
         guard txns.count >= 2 else { return "Recurring" }
         let sorted = txns.sorted { $0.date < $1.date }
-        let spanSeconds = sorted.last!.date.timeIntervalSince(sorted.first!.date)
-        guard spanSeconds > 0 else { return "Recurring" }
+        let spanDays = sorted.last!.date.timeIntervalSince(sorted.first!.date) / 86_400
 
-        let avgIntervalDays = spanSeconds / Double(sorted.count - 1) / 86_400
+        // If the total span is less than 14 days, we don't have enough data
+        // to distinguish weekly from monthly — default to "Monthly" since
+        // most subscriptions are monthly and we'd rather be right for the
+        // common case than wrong for the rare one.
+        guard spanDays >= 14 else { return "Monthly" }
+
+        let avgIntervalDays = spanDays / Double(sorted.count - 1)
+
+        // For weekly, require at least 3 data points AND a short average interval.
+        // This prevents 2 monthly charges that happen to be ~7 days apart
+        // (e.g., prorated first charge + regular charge) from being called weekly.
+        if avgIntervalDays < 10 && sorted.count >= 3 {
+            return "Weekly"
+        }
 
         switch avgIntervalDays {
-        case ..<10:    return "Weekly"
-        case 10..<45:  return "Monthly"
+        case ..<45:    return "Monthly"
         case 45..<120: return "Quarterly"
         case 120..<400: return "Yearly"
         default:        return "Recurring"

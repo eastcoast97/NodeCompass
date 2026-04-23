@@ -8,38 +8,50 @@ struct GoalsView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Active goals with progress
-                    if vm.progress.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(vm.progress) { item in
-                            GoalCard(item: item, onRemove: {
+            List {
+                if vm.progress.isEmpty {
+                    emptyState
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                } else {
+                    ForEach(vm.progress) { item in
+                        GoalCard(item: item, onRemove: {
+                            Task { await vm.remove(goalId: item.goal.id) }
+                        })
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
                                 Task { await vm.remove(goalId: item.goal.id) }
-                            })
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
-                    }
-
-                    // Add goal button
-                    Button { showAddGoal = true } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Add a Goal")
-                                .fontWeight(.medium)
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(NC.teal)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, NC.vPad)
-                        .background(NC.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.cardRadius))
                     }
                 }
-                .padding(.horizontal, NC.hPad)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+
+                // Add goal button
+                Button { showAddGoal = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add a Goal")
+                            .fontWeight(.medium)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(NC.teal)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, NC.vPad)
+                    .background(NC.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
             }
+            .listStyle(.plain)
             .background(Color(.systemGroupedBackground))
+            .scrollContentBackground(.hidden)
             .navigationTitle("Goals")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showAddGoal) {

@@ -363,6 +363,7 @@ class BankConnectionViewModel: ObservableObject {
     private var linkHandler: Handler?
     private var lastUpdateCounter: Int = 0
     private var foregroundObserver: Any?
+    private var plaidRedirectObserver: Any?
 
     var serverURL: String { plaid.currentServerURL }
 
@@ -383,11 +384,25 @@ class BankConnectionViewModel: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.checkForUpdates() }
         }
+
+        // Handle Plaid OAuth redirect — when bank's OAuth flow redirects
+        // back to nodecompass://plaid, pass it to the active link handler.
+        plaidRedirectObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("PlaidOAuthRedirect"),
+            object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let url = notification.object as? URL,
+                  let handler = self?.linkHandler else { return }
+            handler.resumeAfterTermination(from: url)
+        }
     }
 
     deinit {
         autoCheckTimer?.invalidate()
         if let obs = foregroundObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        if let obs = plaidRedirectObserver {
             NotificationCenter.default.removeObserver(obs)
         }
     }
@@ -454,6 +469,8 @@ class BankConnectionViewModel: ObservableObject {
                     self.syncTransactions()
                     self.startAutoCheck()
                     self.isConnecting = false
+                    // Notify other views (YouTab, etc.) that a bank was connected
+                    NotificationCenter.default.post(name: NSNotification.Name("BankConnected"), object: nil)
                 } catch {
                     self.errorMessage = "Bank connection failed: \(error.localizedDescription)"
                     self.isConnecting = false

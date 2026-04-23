@@ -65,11 +65,17 @@ struct NodeCompassApp: App {
         if UserDefaults.standard.bool(forKey: "locationTrackingEnabled") {
             LocationCollector.shared.startTracking()
         }
+
+        // Start listening for location events to auto-complete habits in real-time
+        HabitAutoTracker.shared.startListening()
     }
 
     private func setupNotifications() {
         let center = UNUserNotificationCenter.current()
         center.delegate = NotificationDelegate.shared
+
+        // Request notification permission proactively
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
 
         let logFoodAction = UNNotificationAction(
             identifier: "LOG_FOOD",
@@ -96,7 +102,14 @@ struct NodeCompassApp: App {
             options: []
         )
 
-        center.setNotificationCategories([foodCategory, placeCategory])
+        let habitCategory = UNNotificationCategory(
+            identifier: "HABIT_COMPLETE",
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        center.setNotificationCategories([foodCategory, placeCategory, habitCategory])
     }
 
     private func initializeIntelligenceLayer() {
@@ -141,6 +154,16 @@ struct NodeCompassApp: App {
             // catches the Google Sign-In callback URL, even if the lock
             // screen is showing when the app returns from Safari.
             .onOpenURL { url in
+                // Handle Plaid OAuth redirect — after bank OAuth completes,
+                // Plaid's hosted redirect page (cdn.plaid.com) opens the app
+                // via the nodecompass:// custom scheme.
+                if url.scheme == "nodecompass" {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("PlaidOAuthRedirect"),
+                        object: url
+                    )
+                    return
+                }
                 // Handle Google Sign-In callback
                 GIDSignIn.sharedInstance.handle(url)
             }

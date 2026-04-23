@@ -5,7 +5,17 @@ import Foundation
 struct SpendingAnalyzer {
 
     /// Analyze recent transactions and return any notable insights.
-    static func analyze(events: [LifeEvent], profile: UserProfile) -> [Insight] {
+    ///
+    /// - Parameter cancelledSubscriptionKeys: set of `"<merchant-lower>|<amount 2dp>"`
+    ///   strings that the user has marked as cancelled or flagged as
+    ///   not-a-subscription — these are suppressed from ghost-subscription alerts.
+    ///   PatternEngine fetches this once from `CancelledSubscriptionsStore` and
+    ///   passes it in so `analyze` stays synchronous.
+    static func analyze(
+        events: [LifeEvent],
+        profile: UserProfile,
+        cancelledSubscriptionKeys: Set<String> = []
+    ) -> [Insight] {
         let txnEvents = events.compactMap { event -> TransactionEvent? in
             if case .transaction(let t) = event.payload, !t.isCredit { return t }
             return nil
@@ -27,10 +37,22 @@ struct SpendingAnalyzer {
             insights.append(topMerchant)
         }
 
-        // 4. Ghost subscriptions
-        insights.append(contentsOf: ghostSubscriptionInsights(txnEvents: txnEvents, events: events))
+        // 4. Ghost subscriptions (filtered by user's cancellations)
+        insights.append(contentsOf: ghostSubscriptionInsights(
+            txnEvents: txnEvents,
+            events: events,
+            cancelledKeys: cancelledSubscriptionKeys
+        ))
 
         return insights
+    }
+
+    /// Compute the match key for a (merchant, amount) pair — shared with
+    /// `CancelledSubscriptionsStore` so filtering is consistent.
+    static func subscriptionMatchKey(merchant: String, amount: Double) -> String {
+        let m = merchant.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let a = (amount * 100).rounded() / 100
+        return "\(m)|\(String(format: "%.2f", a))"
     }
 
     // MARK: - Week-over-Week Trend
@@ -132,7 +154,11 @@ struct SpendingAnalyzer {
 
     // MARK: - Ghost Subscriptions
 
-    private static func ghostSubscriptionInsights(txnEvents: [TransactionEvent], events: [LifeEvent]) -> [Insight] {
+    private static func ghostSubscriptionInsights(
+        txnEvents: [TransactionEvent],
+        events: [LifeEvent],
+        cancelledKeys: Set<String>
+    ) -> [Insight] {
         // Group by merchant + rounded amount
         var groups: [String: [TransactionEvent]] = [:]
         for txn in txnEvents {
@@ -144,6 +170,9 @@ struct SpendingAnalyzer {
             guard txns.count >= 2 else { return nil }
             let merchant = txns.first!.merchant
             let amount = txns.first!.amount
+            // Skip if user has marked this (merchant, amount) as cancelled or not-a-sub.
+            let matchKey = subscriptionMatchKey(merchant: merchant, amount: amount)
+            if cancelledKeys.contains(matchKey) { return nil }
             return Insight(
                 type: .ghostSubscription,
                 title: "Recurring: \(merchant)",
@@ -169,6 +198,6 @@ struct SpendingAnalyzer {
     }
 
     private static func formatAmount(_ amount: Double) -> String {
-        String(format: "$%.0f", amount)
+        "\(NC.currencySymbol)\(String(format: "%.0f", amount))"
     }
 }
