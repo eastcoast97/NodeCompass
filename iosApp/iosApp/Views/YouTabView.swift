@@ -429,21 +429,18 @@ struct YouTabView: View {
                     .padding(NC.hPad)
                 }
 
-                // TODO: [Stage 2.1] Remove when Circles UI ships. This row is
-                // only here so we can prove the Sign in with Apple + Supabase
-                // identity handshake works before building circle CRUD.
                 Divider().padding(.leading, NC.dividerIndent)
 
                 Button { showIdentityTest = true } label: {
                     HStack(spacing: 14) {
-                        Image(systemName: "person.badge.key.fill")
+                        Image(systemName: "person.3.sequence.fill")
                             .font(.subheadline)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(NC.teal)
                             .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
+                            .background(NC.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: NC.iconRadius))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Circles (Test Sign-in)").font(.subheadline).foregroundStyle(.primary)
-                            Text("Dev: Verify Apple + Supabase identity flow").font(.caption).foregroundStyle(.secondary)
+                            Text("Circles").font(.subheadline).foregroundStyle(.primary)
+                            Text("Challenge friends in private groups").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
@@ -463,7 +460,7 @@ struct YouTabView: View {
         .sheet(isPresented: $showSubscriptions) { SubscriptionManagerView() }
         .sheet(isPresented: $showSavings) { SavingsGoalsView() }
         .sheet(isPresented: $showIdentityTest) {
-            IdentityPromptSheet(onComplete: {})
+            CirclesView()
         }
     }
 

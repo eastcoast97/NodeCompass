@@ -38,6 +38,7 @@
 		2A99CF2A373378048FE8CAB5 /* EmailSyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190B083056D1B8A275A42F4A /* EmailSyncViewModel.swift */; };
 		2C4687E420F10EE72666B024 /* WealthTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD8870008FF4203ACEA8038 /* WealthTabView.swift */; };
 		2F6237E4E4485FC255AC89C5 /* TransactionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247CB0CBF0D00DFF4B5458F9 /* TransactionBridge.swift */; };
+		2F9FC0CCB903FD7DA652D288 /* CircleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A15D9A27EF45D0B04096EF /* CircleDetailView.swift */; };
 		33BA0505358482CCEFEA917B /* NotificationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA9D4CE3F20019B2118E57D /* NotificationEngine.swift */; };
 		35A410EEDE9EA9F6336F556C /* VoiceFoodParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC7FD643ACF9CF69EAB5039 /* VoiceFoodParser.swift */; };
 		379D4C6DBBA934A8EF44CDDE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = ED84D8CC1DC1DE026A58F100 /* Supabase */; };
@@ -66,6 +67,7 @@
 		650D2B05BEE0B184CECECCAE /* ChallengeShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD977754992CB9B37FA27B /* ChallengeShareCard.swift */; };
 		65AB71CD9E31F5366A88E297 /* CrossSourceAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BDEA41C478261CDB5A7DD43 /* CrossSourceAnalyzer.swift */; };
 		6BAC8D754413CF7FCAF00459 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D733DC16BE7EC2999CA788DE /* UserProfile.swift */; };
+		6C2A9EBDFD66461CE545E5E9 /* EnterInviteCodeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41AFD705E440A5037BF4BA4 /* EnterInviteCodeSheet.swift */; };
 		6D3C652C87360FCE5258A252 /* FoodStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6BF4CDA71D96FD251FC705A /* FoodStore.swift */; };
 		6FC6DA884973EE9F35CE56C4 /* SpendingPredictor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289642ECD9EC4E523F8BF635 /* SpendingPredictor.swift */; };
 		70A5FAD0BC3A55A0687F2ABE /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356FB86D51F95709B33569F2 /* Config.swift */; };
@@ -84,6 +86,7 @@
 		8D2A198F9C48936939DD54A2 /* WeeklyDigestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA71EED4FA33CE473E23E29 /* WeeklyDigestView.swift */; };
 		8DCDB92F27F8984ACF29BE87 /* CategoryBreakdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47958E43A494FA8EE927F4A3 /* CategoryBreakdownView.swift */; };
 		8FDF6030F497B56964CC3D85 /* SwiftEmailReceiptParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3A8BB9B7B9789724748E15 /* SwiftEmailReceiptParser.swift */; };
+		909D5D5555AA53FAE0A81009 /* CirclesRemoteSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7565BC061C221EBB130E7DC0 /* CirclesRemoteSync.swift */; };
 		91AC223FD164D788B3E6D39F /* AchievementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E158AD4F1F8E5515D1DF974 /* AchievementsView.swift */; };
 		9269EDD21DFD43A131AB00FE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DB86A1324A5D8F0E6E7BBF /* SettingsView.swift */; };
 		9416A7BFE34CD052729D5FB3 /* DataExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5963D0FFF0E1877E18CE9BE9 /* DataExportView.swift */; };
@@ -105,11 +108,13 @@
 		B1751DF92A391623C19894D6 /* PlaceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFEABA041495200170418713 /* PlaceResolver.swift */; };
 		B23F47210B777B97C9482A3E /* AnomalyDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2011348C133076607AE42341 /* AnomalyDetector.swift */; };
 		B2A1BD17C5D235607CF24E6F /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E83E8DC1255E73A5744FA1E /* DashboardView.swift */; };
+		B398A5441653616791323676 /* CreateCircleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDE653BC2AD2ACC79675FDF /* CreateCircleSheet.swift */; };
 		B6BE1B3D4F6134865B89E5E1 /* CancelledSubscriptionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01265215010A0D666A3A2604 /* CancelledSubscriptionsStore.swift */; };
 		B7C4F6137AC8345E71E92063 /* LinkKit in Frameworks */ = {isa = PBXBuildFile; productRef = 328EC003D8E4D9BF9601BD48 /* LinkKit */; };
 		B9A6BAF0A3CD112CEC7ADCB4 /* MorningBriefEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E402707330EDD557F0CEC05 /* MorningBriefEngine.swift */; };
 		BBCE8F26E8ABD176DA343419 /* ChallengeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D44EE992A89B88F50C21816 /* ChallengeStore.swift */; };
 		BE82D07869D968419F204B3E /* InsightsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D795C7A5B8E99DF66BB27DA /* InsightsViewModel.swift */; };
+		BFA021D3B1A032B52D1D962F /* CirclesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D70D827B1CEF8C9AF59C7F2 /* CirclesView.swift */; };
 		C51A54D1D425B7A94A82A5D8 /* LocationHeatmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28B4BBB6CE7DB59B3067ECF4 /* LocationHeatmapView.swift */; };
 		C641A010C78DAA74F8781481 /* TrendChartsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 897AE136252BF54060FE38C7 /* TrendChartsView.swift */; };
 		C6AF5718208DC4149629764E /* NudgeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77EABC37C8D65B9AEAE5BA92 /* NudgeEngine.swift */; };
@@ -156,6 +161,7 @@
 		2ACC958D8A710936FBF3E507 /* SubscriptionManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManagerView.swift; sourceTree = "<group>"; };
 		2C93332898B30E2F4E28AC31 /* MoodCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoodCheckInView.swift; sourceTree = "<group>"; };
 		2D3CDDBECB1534F7D9711F99 /* AchievementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementEngine.swift; sourceTree = "<group>"; };
+		2D70D827B1CEF8C9AF59C7F2 /* CirclesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CirclesView.swift; sourceTree = "<group>"; };
 		319AA25064349D463598C9AA /* DataCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCollector.swift; sourceTree = "<group>"; };
 		334C63DA2F79650F4421D505 /* PlaidService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaidService.swift; sourceTree = "<group>"; };
 		356FB86D51F95709B33569F2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
@@ -189,6 +195,7 @@
 		6CC685096E7916360F2118B4 /* AppLearningStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLearningStage.swift; sourceTree = "<group>"; };
 		6D44EE992A89B88F50C21816 /* ChallengeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeStore.swift; sourceTree = "<group>"; };
 		7256ABCE120F4DD1552AEA2F /* MonthlyWrappedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyWrappedView.swift; sourceTree = "<group>"; };
+		7565BC061C221EBB130E7DC0 /* CirclesRemoteSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CirclesRemoteSync.swift; sourceTree = "<group>"; };
 		76860E48ED8E2F855A6B4DD5 /* SmartCategorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCategorizer.swift; sourceTree = "<group>"; };
 		768C496DD9C11F0BA91CEE6A /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
 		76B0B14972CB68CF44B17D34 /* FoodAutoDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAutoDetector.swift; sourceTree = "<group>"; };
@@ -207,6 +214,7 @@
 		8A641F6CE2B0D06658BC63B9 /* QuickFoodLogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickFoodLogSheet.swift; sourceTree = "<group>"; };
 		8E158AD4F1F8E5515D1DF974 /* AchievementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementsView.swift; sourceTree = "<group>"; };
 		8E83E8DC1255E73A5744FA1E /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		90A15D9A27EF45D0B04096EF /* CircleDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDetailView.swift; sourceTree = "<group>"; };
 		92DB86A1324A5D8F0E6E7BBF /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		93570CF1BCC6FF2FE92BAFB2 /* WeatherCorrelation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherCorrelation.swift; sourceTree = "<group>"; };
 		941F224CF0AB3C1D531D810A /* TodayPulseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayPulseEngine.swift; sourceTree = "<group>"; };
@@ -220,6 +228,7 @@
 		A0276F01AE57228A57F07C4C /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		A0C17B88CBA08421F33F6735 /* LocationCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationCollector.swift; sourceTree = "<group>"; };
 		A3368A9F0A8103F4EBF83126 /* BudgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetStore.swift; sourceTree = "<group>"; };
+		A41AFD705E440A5037BF4BA4 /* EnterInviteCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnterInviteCodeSheet.swift; sourceTree = "<group>"; };
 		A59739E4F9B3F83F237819C2 /* GmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GmailService.swift; sourceTree = "<group>"; };
 		A884C092E6C8D6368F25F361 /* WeeklyDigestEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyDigestEngine.swift; sourceTree = "<group>"; };
 		AB5AF550ED8DA1804AF59669 /* VoiceInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputView.swift; sourceTree = "<group>"; };
@@ -248,6 +257,7 @@
 		D733DC16BE7EC2999CA788DE /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		DA62F42374D0530CFCD6CF7E /* SubscriptionCancelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCancelRegistry.swift; sourceTree = "<group>"; };
 		DCDBA9C20F150EA3E589017D /* BillCalendarEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillCalendarEngine.swift; sourceTree = "<group>"; };
+		DEDE653BC2AD2ACC79675FDF /* CreateCircleSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCircleSheet.swift; sourceTree = "<group>"; };
 		EA29550B57E517FA984E2F95 /* PersonalInfoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalInfoStore.swift; sourceTree = "<group>"; };
 		EC82BE74DFE9D7EF2258721D /* GroqService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqService.swift; sourceTree = "<group>"; };
 		ECF316164EDDAAE8DD404D1D /* HealthCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthCollector.swift; sourceTree = "<group>"; };
@@ -337,9 +347,13 @@
 				47958E43A494FA8EE927F4A3 /* CategoryBreakdownView.swift */,
 				7CAD977754992CB9B37FA27B /* ChallengeShareCard.swift */,
 				C69DFC2ABC6818CCBF21C7C4 /* ChallengesView.swift */,
+				90A15D9A27EF45D0B04096EF /* CircleDetailView.swift */,
+				2D70D827B1CEF8C9AF59C7F2 /* CirclesView.swift */,
+				DEDE653BC2AD2ACC79675FDF /* CreateCircleSheet.swift */,
 				8E83E8DC1255E73A5744FA1E /* DashboardView.swift */,
 				5963D0FFF0E1877E18CE9BE9 /* DataExportView.swift */,
 				565DFBF3625B3CE3B402F579 /* EmailSyncView.swift */,
+				A41AFD705E440A5037BF4BA4 /* EnterInviteCodeSheet.swift */,
 				85DE8D927EC9BFDFEF39DC53 /* FoodLogView.swift */,
 				AEFDEC9CB7EF660EA3D90091 /* GeminiSetupView.swift */,
 				A0276F01AE57228A57F07C4C /* GoalsView.swift */,
@@ -465,6 +479,7 @@
 				AE6D4CB2569A89697B17EB7E /* AnonymousIdentity.swift */,
 				099B3B899732BCCE87EA9EE7 /* AuthService.swift */,
 				01265215010A0D666A3A2604 /* CancelledSubscriptionsStore.swift */,
+				7565BC061C221EBB130E7DC0 /* CirclesRemoteSync.swift */,
 				5E3F3A380E7CE9962A1E6ACA /* FoodDeliveryParser.swift */,
 				60E952FB2367F2A7E2A989D4 /* FoodOrderScraper.swift */,
 				A59739E4F9B3F83F237819C2 /* GmailService.swift */,
@@ -595,9 +610,13 @@
 				650D2B05BEE0B184CECECCAE /* ChallengeShareCard.swift in Sources */,
 				BBCE8F26E8ABD176DA343419 /* ChallengeStore.swift in Sources */,
 				4D34EDCB811D431AB8C5879A /* ChallengesView.swift in Sources */,
+				2F9FC0CCB903FD7DA652D288 /* CircleDetailView.swift in Sources */,
+				909D5D5555AA53FAE0A81009 /* CirclesRemoteSync.swift in Sources */,
+				BFA021D3B1A032B52D1D962F /* CirclesView.swift in Sources */,
 				E725F6A479BDCEDB7AE33910 /* ComparisonEngine.swift in Sources */,
 				70A5FAD0BC3A55A0687F2ABE /* Config.swift in Sources */,
 				56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */,
+				B398A5441653616791323676 /* CreateCircleSheet.swift in Sources */,
 				65AB71CD9E31F5366A88E297 /* CrossSourceAnalyzer.swift in Sources */,
 				B2A1BD17C5D235607CF24E6F /* DashboardView.swift in Sources */,
 				3FED69853086FF3185B68E66 /* DashboardViewModel.swift in Sources */,
@@ -605,6 +624,7 @@
 				9416A7BFE34CD052729D5FB3 /* DataExportView.swift in Sources */,
 				0BFE2453982B24CCB51203E5 /* EmailSyncView.swift in Sources */,
 				2A99CF2A373378048FE8CAB5 /* EmailSyncViewModel.swift in Sources */,
+				6C2A9EBDFD66461CE545E5E9 /* EnterInviteCodeSheet.swift in Sources */,
 				EDA15DA0173943D9665122C6 /* EventStore.swift in Sources */,
 				135660C10BB7B48F210F282D /* FoodAnalyzer.swift in Sources */,
 				080C38D6B6E6C2A00E3F14DA /* FoodAutoDetector.swift in Sources */,

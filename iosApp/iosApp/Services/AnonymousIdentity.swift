@@ -96,6 +96,47 @@ final class AnonymousIdentity: NSObject, ObservableObject {
         hasIdentity = false
     }
 
+    /// Return a Supabase-authenticated user ID, guaranteeing a fresh access
+    /// token before every RLS-sensitive write.
+    ///
+    /// We call `refreshSession()` instead of reading `currentSession`
+    /// because Supabase access tokens expire after ~1 hour. Reading the
+    /// in-memory session can hand back an expired JWT — the client-side
+    /// UUID looks fine but the server-side `auth.uid()` evaluates to null
+    /// because the token is rejected, causing every RLS check that
+    /// compares to `auth.uid()::text` to fail.
+    ///
+    /// Refreshing on every call adds one ~200ms network hop, but avoids the
+    /// whole class of "stale session" RLS failures. Supabase does token
+    /// rotation internally so this is cheap in practice.
+    ///
+    /// Callers: `CirclesRemoteSync.createCircle/joinWithCode/leaveCircle`
+    /// and any future service that writes RLS-checked rows.
+    @discardableResult
+    func ensureSession() async throws -> String {
+        // Try to refresh first. If the refresh token is still valid (which
+        // it normally is — refresh tokens last weeks), this transparently
+        // rotates us to a fresh access token. If the refresh token is also
+        // gone, we fall through to a full re-auth.
+        do {
+            let session = try await NCBackend.shared.auth.refreshSession()
+            let uid = session.user.id.uuidString.lowercased()
+            if uid != anonUserId {
+                anonUserId = uid
+                hasIdentity = true
+                _ = KeychainService.shared.save(key: keychainKey, value: uid)
+            }
+            return uid
+        } catch {
+            // Refresh failed — fall through to full re-auth via Apple.
+        }
+
+        // Last resort: re-run Apple sign-in. User sees the system sheet,
+        // which is near-instant if they're already signed in to their
+        // Apple ID on the device.
+        return try await signIn()
+    }
+
     // MARK: - Internal
 
     /// Handle a successful Apple credential — exchange the identity token
