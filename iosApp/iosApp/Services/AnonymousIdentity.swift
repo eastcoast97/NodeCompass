@@ -1,6 +1,5 @@
 import Foundation
 import AuthenticationServices
-import CryptoKit
 import Supabase
 
 /// Derives and persists a stable anonymous user ID from Sign in with Apple.
@@ -44,9 +43,19 @@ final class AnonymousIdentity: NSObject, ObservableObject {
     private override init() {
         super.init()
         // Load the anon ID from Keychain if it exists from a previous session.
+        //
+        // Validate shape: current format is Supabase's auth.users.id UUID
+        // (36 chars, 4 hyphens). Older builds saved SHA-256 hex hashes of
+        // Apple's opaque identifier (64 chars, no hyphens) — those no longer
+        // match Supabase RLS policies, so wipe them to force a fresh
+        // sign-in sequence on next attempt.
         if let cached = KeychainService.shared.get(key: keychainKey) {
-            self.anonUserId = cached
-            self.hasIdentity = true
+            if UUID(uuidString: cached) != nil {
+                self.anonUserId = cached
+                self.hasIdentity = true
+            } else {
+                KeychainService.shared.delete(key: keychainKey)
+            }
         }
     }
 
@@ -55,16 +64,17 @@ final class AnonymousIdentity: NSObject, ObservableObject {
     /// Kick off the Sign in with Apple flow. Resolves with the stable anon ID
     /// once the user completes authentication and Supabase accepts the token.
     ///
+    /// Always runs the full Apple + Supabase handshake — we intentionally do
+    /// NOT short-circuit on cached `anonUserId` because the cache can outlive
+    /// a Supabase session (e.g. session expired, app reinstalled with the
+    /// Keychain entry surviving, early broken attempts persisted a stale ID).
+    /// Apple's own system sheet is instant when you're already signed in so
+    /// there's near-zero UX cost to re-running this.
+    ///
     /// Throws `AnonymousIdentityError.cancelled` if the user dismisses the
     /// system auth sheet, or `.supabaseRejected(reason:)` if token exchange
     /// fails.
     func signIn() async throws -> String {
-        // If we already have an anon ID, short-circuit — but re-verify the
-        // Supabase session is alive, re-auth if not.
-        if let existing = anonUserId {
-            return existing
-        }
-
         return try await withCheckedThrowingContinuation { continuation in
             pendingContinuation = continuation
 
@@ -88,8 +98,20 @@ final class AnonymousIdentity: NSObject, ObservableObject {
 
     // MARK: - Internal
 
-    /// Handle a successful Apple credential — exchange the identity token with
-    /// Supabase, persist the hashed anon ID.
+    /// Handle a successful Apple credential — exchange the identity token
+    /// with Supabase, persist the Supabase-issued user UUID as our anon ID.
+    ///
+    /// Why use Supabase's user.id instead of hashing Apple's opaque user
+    /// string: Supabase's RLS policies check `auth.uid()` against our table's
+    /// `anon_user_id` column. Supabase's `auth.uid()` is a UUID it generates
+    /// per auth.users row — NOT Apple's raw sub claim. If we store a hash of
+    /// Apple's ID, the RLS policy `auth.uid()::text = anon_user_id` always
+    /// fails and every INSERT gets silently rejected. Using Supabase's
+    /// UUID aligns our tables with how Postgres enforces access.
+    ///
+    /// The UUID is still privacy-preserving — Supabase generates it randomly
+    /// per user, doesn't leak Apple's identity, and only circle members ever
+    /// see your (per-circle) display name + emoji avatar, never the UUID.
     private func completeSignIn(credential: ASAuthorizationAppleIDCredential) async {
         guard let identityTokenData = credential.identityToken,
               let identityToken = String(data: identityTokenData, encoding: .utf8) else {
@@ -97,39 +119,32 @@ final class AnonymousIdentity: NSObject, ObservableObject {
             return
         }
 
-        // Compute our anon ID from Apple's opaque identifier. `user` is a
-        // stable string unique to this app + user.
-        let hashed = sha256Hex(credential.user)
-
+        let anonId: String
         do {
             // Sign in to Supabase using Apple's identity token.
-            // Supabase validates the JWT against Apple's JWKS, then issues us
-            // a Supabase session (access token + refresh token).
-            try await NCBackend.shared.auth.signInWithIdToken(
+            // Supabase validates the JWT against Apple's JWKS, then issues
+            // us a Supabase session (access token + refresh token).
+            let session = try await NCBackend.shared.auth.signInWithIdToken(
                 credentials: .init(provider: .apple, idToken: identityToken)
             )
+            anonId = session.user.id.uuidString.lowercased()
         } catch {
             fail(with: .supabaseRejected(reason: error.localizedDescription))
             return
         }
 
         // Persist and publish.
-        _ = KeychainService.shared.save(key: keychainKey, value: hashed)
-        self.anonUserId = hashed
+        _ = KeychainService.shared.save(key: keychainKey, value: anonId)
+        self.anonUserId = anonId
         self.hasIdentity = true
 
-        pendingContinuation?.resume(returning: hashed)
+        pendingContinuation?.resume(returning: anonId)
         pendingContinuation = nil
     }
 
     private func fail(with error: AnonymousIdentityError) {
         pendingContinuation?.resume(throwing: error)
         pendingContinuation = nil
-    }
-
-    private func sha256Hex(_ input: String) -> String {
-        let digest = SHA256.hash(data: Data(input.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
 

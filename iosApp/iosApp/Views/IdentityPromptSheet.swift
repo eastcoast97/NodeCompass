@@ -80,26 +80,29 @@ struct IdentityPromptSheet: View {
                 .font(.caption)
                 .foregroundStyle(NC.textSecondary)
 
-            SignInWithAppleButton(
-                onRequest: { request in
-                    request.requestedScopes = []
-                },
-                onCompletion: { _ in
-                    // Handled by AnonymousIdentity's own ASAuthorizationController
-                    // flow below — we trigger it via `identity.signIn()`.
+            // Plain Button styled to resemble Apple's sign-in button.
+            // We deliberately avoid `SignInWithAppleButton` here because it
+            // insists on owning its own tap handler — mixing our own
+            // AnonymousIdentity flow with SIWA button's onCompletion is
+            // prone to silent failures (`Color.clear` overlays don't hit-
+            // test, etc). For App Store submission we can swap back to the
+            // official button and route its onCompletion into
+            // AnonymousIdentity; until then, this is the reliable path.
+            Button {
+                Task { await performSignIn() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "applelogo")
+                        .font(.system(size: 18, weight: .medium))
+                    Text("Sign in with Apple")
+                        .font(.system(size: 17, weight: .semibold))
                 }
-            )
-            .signInWithAppleButtonStyle(.white)
-            .frame(height: 50)
-            .overlay(
-                // Tappable overlay that triggers our own flow (which posts the
-                // request through ASAuthorizationController with our delegate).
-                Button {
-                    Task { await performSignIn() }
-                } label: {
-                    Color.clear
-                }
-            )
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(.white, in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(.black)
+            }
+            .buttonStyle(.plain)
             .disabled(isSigningIn)
             .opacity(isSigningIn ? 0.6 : 1.0)
 
@@ -113,9 +116,16 @@ struct IdentityPromptSheet: View {
             }
 
             if let err = errorMessage {
-                Text(err)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                    Text(err)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 4)
             }
         }
         .padding()
@@ -182,6 +192,20 @@ struct IdentityPromptSheet: View {
             }
             .disabled(!canSave)
             .buttonStyle(.plain)
+
+            // Show profile-save errors (RLS reject, network) inline.
+            if let err = errorMessage {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                    Text(err)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 4)
+            }
         }
         .padding()
         .background(NC.bgSurface)
@@ -225,7 +249,13 @@ struct IdentityPromptSheet: View {
     }
 
     private func saveProfile() async {
-        await profile.set(displayName: draftName, avatarEmoji: draftEmoji)
+        errorMessage = nil
+        if let err = await profile.set(displayName: draftName, avatarEmoji: draftEmoji) {
+            // Surface real errors (RLS reject, network, etc.) instead of
+            // silently dismissing. Keep the sheet open so the user can retry.
+            errorMessage = err
+            return
+        }
         onComplete()
         dismiss()
     }

@@ -48,12 +48,18 @@ final class UserIdentityProfile: ObservableObject {
     // MARK: - Updates
 
     /// Set the user's profile values locally + push them to Supabase.
-    /// The remote write is best-effort — if network is unavailable, we still
-    /// save locally and retry on next app launch via `syncIfNeeded()`.
-    func set(displayName: String, avatarEmoji: String) async {
+    /// Returns `nil` on success, or a user-facing error string on failure —
+    /// the local cache is always written even when the remote write fails,
+    /// so the retry in `syncIfNeeded()` has a chance to pick it up later.
+    @discardableResult
+    func set(displayName: String, avatarEmoji: String) async -> String? {
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 40 else { return }
-        guard avatarEmoji.count <= 8 else { return }
+        guard !trimmed.isEmpty, trimmed.count <= 40 else {
+            return "Display name must be 1-40 characters."
+        }
+        guard avatarEmoji.count <= 8 else {
+            return "Avatar emoji invalid."
+        }
 
         self.displayName = trimmed
         self.avatarEmoji = avatarEmoji
@@ -62,7 +68,12 @@ final class UserIdentityProfile: ObservableObject {
         defaults.set(trimmed, forKey: displayNameKey)
         defaults.set(avatarEmoji, forKey: avatarEmojiKey)
 
-        await pushToSupabase()
+        do {
+            try await pushToSupabase()
+            return nil
+        } catch {
+            return "Couldn't save to server: \(error.localizedDescription)"
+        }
     }
 
     /// If we have an anon identity but the remote profile row is missing
@@ -70,7 +81,7 @@ final class UserIdentityProfile: ObservableObject {
     /// app launch from `NodeCompassApp.bootstrapSupabase()`.
     func syncIfNeeded() async {
         guard AnonymousIdentity.shared.hasIdentity, isConfigured else { return }
-        await pushToSupabase()
+        try? await pushToSupabase()
     }
 
     // MARK: - Remote
@@ -81,8 +92,23 @@ final class UserIdentityProfile: ObservableObject {
         let avatar_emoji: String
     }
 
-    private func pushToSupabase() async {
-        guard let anonId = AnonymousIdentity.shared.anonUserId else { return }
+    enum ProfileSyncError: LocalizedError {
+        case noAnonymousIdentity
+        var errorDescription: String? {
+            switch self {
+            case .noAnonymousIdentity:
+                return "Not signed in."
+            }
+        }
+    }
+
+    /// Upsert the local profile row to Supabase. Throws on failure so the
+    /// caller can surface a user-visible error (network issue, RLS reject,
+    /// etc).
+    private func pushToSupabase() async throws {
+        guard let anonId = AnonymousIdentity.shared.anonUserId else {
+            throw ProfileSyncError.noAnonymousIdentity
+        }
 
         let row = ProfileRow(
             anon_user_id: anonId,
@@ -90,16 +116,12 @@ final class UserIdentityProfile: ObservableObject {
             avatar_emoji: avatarEmoji
         )
 
-        do {
-            // UPSERT on the profiles table. `on_conflict: anon_user_id`
-            // guarantees repeat writes update existing row instead of
-            // failing on the primary-key constraint.
-            try await NCBackend.shared
-                .from("profiles")
-                .upsert(row, onConflict: "anon_user_id")
-                .execute()
-        } catch {
-            // Best-effort — sync will retry on next launch via `syncIfNeeded`.
-        }
+        // UPSERT on the profiles table. `onConflict: "anon_user_id"` ensures
+        // repeat writes update the existing row instead of failing the PK
+        // constraint.
+        try await NCBackend.shared
+            .from("profiles")
+            .upsert(row, onConflict: "anon_user_id")
+            .execute()
     }
 }

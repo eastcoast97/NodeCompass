@@ -26,6 +26,8 @@ struct YouTabView: View {
     @State private var showTrends = false
     @State private var showSubscriptions = false
     @State private var showSavings = false
+    // TODO: [Stage 2.1] Replaces this with real Circles entry point
+    @State private var showIdentityTest = false
     @State private var selectedTheme: String = UserDefaults.standard.string(forKey: "preferredColorScheme") ?? "system"
 
     var body: some View {
@@ -426,6 +428,28 @@ struct YouTabView: View {
                     }
                     .padding(NC.hPad)
                 }
+
+                // TODO: [Stage 2.1] Remove when Circles UI ships. This row is
+                // only here so we can prove the Sign in with Apple + Supabase
+                // identity handshake works before building circle CRUD.
+                Divider().padding(.leading, NC.dividerIndent)
+
+                Button { showIdentityTest = true } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "person.badge.key.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                            .frame(width: NC.iconSize, height: NC.iconSize)
+                            .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Circles (Test Sign-in)").font(.subheadline).foregroundStyle(.primary)
+                            Text("Dev: Verify Apple + Supabase identity flow").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .padding(NC.hPad)
+                }
             }
             .background(NC.bgSurface, in: RoundedRectangle(cornerRadius: NC.cardRadius))
         }
@@ -438,6 +462,9 @@ struct YouTabView: View {
         .sheet(isPresented: $showTrends) { TrendChartsView() }
         .sheet(isPresented: $showSubscriptions) { SubscriptionManagerView() }
         .sheet(isPresented: $showSavings) { SavingsGoalsView() }
+        .sheet(isPresented: $showIdentityTest) {
+            IdentityPromptSheet(onComplete: {})
+        }
     }
 
     // MARK: - Appearance Section
