@@ -9,6 +9,7 @@ struct CircleDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var members: [CirclesRemoteSync.CircleMember] = []
+    @State private var circleChallenges: [CoopChallengeSync.CircleChallenge] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showLeaveConfirm = false
@@ -17,6 +18,8 @@ struct CircleDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 inviteCodeCard
+
+                challengesSection
 
                 membersSection
 
@@ -108,6 +111,39 @@ struct CircleDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
     }
 
+    private var challengesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Shared Challenges")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(NC.textPrimary)
+                Spacer()
+                Text("\(circleChallenges.count)")
+                    .font(.caption)
+                    .foregroundStyle(NC.textTertiary)
+            }
+
+            if circleChallenges.isEmpty {
+                Text("No shared challenges yet. Share one from the Catalog tab.")
+                    .font(.caption)
+                    .foregroundStyle(NC.textTertiary)
+                    .padding(.vertical, 4)
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(circleChallenges) { challenge in
+                        NavigationLink(value: challenge) {
+                            CircleChallengeRow(challenge: challenge)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .navigationDestination(for: CoopChallengeSync.CircleChallenge.self) { challenge in
+            CircleChallengeDetailView(challenge: challenge)
+        }
+    }
+
     private var membersSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -143,7 +179,10 @@ struct CircleDetailView: View {
         defer { isLoading = false }
         errorMessage = nil
         do {
-            members = try await CirclesRemoteSync.shared.membersOf(circleId: circle.id)
+            async let membersFetch = CirclesRemoteSync.shared.membersOf(circleId: circle.id)
+            async let challengesFetch = CoopChallengeSync.shared.challenges(for: circle.id)
+            members = try await membersFetch
+            circleChallenges = (try? await challengesFetch) ?? []
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -158,6 +197,71 @@ struct CircleDetailView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Circle Challenge Row
+
+private struct CircleChallengeRow: View {
+    let challenge: CoopChallengeSync.CircleChallenge
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundStyle(accentColor)
+                .frame(width: NC.iconSize, height: NC.iconSize)
+                .background(accentColor.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: NC.iconRadius))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(challenge.title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(NC.textPrimary)
+                if let sub = challenge.subtitle, !sub.isEmpty {
+                    Text(sub)
+                        .font(.caption)
+                        .foregroundStyle(NC.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            Text(daysRemainingLabel)
+                .font(.caption.monospaced())
+                .foregroundStyle(NC.textSecondary)
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(NC.textTertiary)
+        }
+        .padding()
+        .background(NC.bgSurface)
+        .clipShape(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
+    }
+
+    private var accentColor: Color {
+        switch challenge.pillar {
+        case "wealth": return NC.wealth
+        case "health": return NC.health
+        case "mind":   return NC.mind
+        case "cross":  return NC.insight
+        default:       return NC.teal
+        }
+    }
+
+    private var iconName: String {
+        // Best-effort map from raw challenge type string to the enum icon.
+        // Unknown types fall through to a neutral flag icon.
+        ChallengeStore.ChallengeType(rawValue: challenge.challengeType)?.icon ?? "flag"
+    }
+
+    private var daysRemainingLabel: String {
+        let days = Calendar.current
+            .dateComponents([.day], from: Date(), to: challenge.endsAt).day ?? 0
+        if days <= 0 { return "ended" }
+        return "\(days)d"
     }
 }
 

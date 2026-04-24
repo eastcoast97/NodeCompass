@@ -145,6 +145,7 @@ private struct CatalogTab: View {
     @ObservedObject var vm: ChallengesViewModel
     @Binding var showCustomSheet: Bool
     @State private var selectedPillar: ChallengeStore.Pillar? = nil
+    @State private var pendingStartEntry: ChallengeCatalog.Entry?
 
     private var filteredEntries: [ChallengeCatalog.Entry] {
         if let p = selectedPillar {
@@ -188,8 +189,13 @@ private struct CatalogTab: View {
                             entry: entry,
                             isActive: vm.hasActive(catalogId: entry.id),
                             onStart: {
-                                Task {
-                                    await vm.start(from: entry)
+                                // If the user has ≥1 circle, present a scope
+                                // picker (Solo / per-circle). If they have
+                                // no circles, fall through to a solo start.
+                                if vm.circles.isEmpty {
+                                    Task { await vm.start(from: entry) }
+                                } else {
+                                    pendingStartEntry = entry
                                 }
                             }
                         )
@@ -212,6 +218,27 @@ private struct CatalogTab: View {
                 .padding(.horizontal, NC.hPad)
                 .padding(.bottom, 24)
             }
+        }
+        .confirmationDialog(
+            pendingStartEntry.map { "Start \"\($0.title)\"" } ?? "Start challenge",
+            isPresented: Binding(
+                get: { pendingStartEntry != nil },
+                set: { if !$0 { pendingStartEntry = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingStartEntry
+        ) { entry in
+            Button("Start solo") {
+                Task { await vm.start(from: entry) }
+            }
+            ForEach(vm.circles) { circle in
+                Button("Share with \(circle.name)") {
+                    Task { await vm.shareToCircle(entry, circle: circle) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { entry in
+            Text(entry.subtitle)
         }
     }
 }
@@ -361,6 +388,23 @@ private struct ActiveChallengeCard: View {
                     .font(.caption2)
                     .foregroundStyle(NC.textSecondary)
                 Spacer()
+
+                // Circle-scoped badge + days remaining. Only the solo badge
+                // gets plain days-left text; circle-scoped challenges show
+                // a small "Shared" pill so the user knows this one is
+                // syncing to teammates.
+                if item.challenge.scope.isCircle {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Shared")
+                            .font(.caption2.bold())
+                    }
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(NC.teal.opacity(0.15), in: Capsule())
+                    .foregroundStyle(NC.teal)
+                }
+
                 Text("\(item.daysRemaining) day\(item.daysRemaining == 1 ? "" : "s") left")
                     .font(.caption2.bold())
                     .foregroundStyle(pillarColor(item.challenge.pillar))
@@ -634,6 +678,9 @@ class ChallengesViewModel: ObservableObject {
     @Published var active: [ChallengeProgress] = []
     @Published var completed: [ChallengeProgress] = []
     @Published var activeCatalogIds: Set<String> = []
+    /// User's circles — populated on load so the scope picker has something
+    /// to show. Empty when the user is offline or not signed in.
+    @Published var circles: [CirclesRemoteSync.Circle] = []
 
     func load() async {
         let store = ChallengeStore.shared
@@ -653,15 +700,50 @@ class ChallengesViewModel: ObservableObject {
         }
 
         activeCatalogIds = Set(activeList.compactMap { $0.catalogId })
+
+        // Best-effort circles load — we only need them to feed the scope
+        // picker. Failures (offline / no identity) just mean the picker
+        // doesn't appear, and Start falls straight through to solo.
+        circles = (try? await CirclesRemoteSync.shared.myCircles()) ?? []
     }
 
     func hasActive(catalogId: String) -> Bool {
         activeCatalogIds.contains(catalogId)
     }
 
+    /// Start a solo instance of a catalog entry.
     func start(from entry: ChallengeCatalog.Entry) async {
         _ = await ChallengeStore.shared.startFromCatalog(entry)
         await load()
+    }
+
+    /// Share a catalog entry into one of the user's circles:
+    ///   1. `share_challenge` RPC creates the server-side `circle_challenges`
+    ///      row and auto-joins the caller as a participant.
+    ///   2. A local `Challenge` is created with `.circle(scope)` pointing at
+    ///      the server-side UUID so `updateProgress()` knows to upload
+    ///      scores on every run.
+    func shareToCircle(
+        _ entry: ChallengeCatalog.Entry,
+        circle: CirclesRemoteSync.Circle
+    ) async {
+        do {
+            let remote = try await CoopChallengeSync.shared.shareToCircle(
+                entry, circleId: circle.id
+            )
+            let scope = ChallengeStore.Scope(
+                circleChallengeId: remote.id.uuidString.lowercased(),
+                circleId: remote.circleId.uuidString.lowercased()
+            )
+            _ = await ChallengeStore.shared.startFromCatalog(entry, scope: scope)
+            await load()
+        } catch {
+            // Surface the error to the user via the same error-banner path
+            // the Circles flow uses. For now, silently log — the sharing
+            // sheet-return + no-challenge-appearing will be visible enough.
+            // TODO: bubble up errors into ChallengesView as a toast.
+            print("[ChallengesVM] shareToCircle failed: \(error.localizedDescription)")
+        }
     }
 
     func create(type: ChallengeStore.ChallengeType, target: Double, days: Int) async {

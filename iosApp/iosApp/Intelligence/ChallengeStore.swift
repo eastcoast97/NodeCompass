@@ -49,6 +49,29 @@ actor ChallengeStore {
         }
     }
 
+    /// How a challenge is scoped.
+    /// - `.solo` — tracked locally only, never syncs to Supabase
+    /// - `.circle(String)` — shared with one of the user's circles; progress
+    ///   syncs to `participant_scores` after every `updateProgress()` run.
+    ///   The associated String is the `circle_challenges.id` (server-side UUID).
+    ///
+    /// Stored as a flat Codable struct so the Challenge model stays
+    /// backward-compatible: a nil `circleChallengeId` means solo.
+    struct Scope: Codable, Equatable {
+        /// nil = solo, non-nil = circle-scoped (value is the server-side
+        /// circle_challenges.id).
+        let circleChallengeId: String?
+
+        /// nil = solo, non-nil = the circle this challenge lives in. Stored
+        /// alongside the challenge ID so we can route the Active card to the
+        /// right Circle Detail view without an extra lookup.
+        let circleId: String?
+
+        static let solo = Scope(circleChallengeId: nil, circleId: nil)
+
+        var isCircle: Bool { circleChallengeId != nil }
+    }
+
     struct Challenge: Codable, Identifiable {
         let id: String
         var title: String
@@ -76,10 +99,15 @@ actor ChallengeStore {
         /// duplicate concurrent instances of the same catalog entry.
         var catalogId: String?
 
+        /// Solo (default) or circle-scoped. When circle-scoped, progress
+        /// updates are uploaded to Supabase after each `updateProgress()` run.
+        var scope: Scope
+
         enum CodingKeys: String, CodingKey {
             case id, title, type, targetValue, currentValue
             case startDate, endDate, isCompleted, completedAt
             case pillar, difficulty, subtitle, unlockAchievement, catalogId
+            case scope
         }
 
         /// Custom decoder that tolerates pre-Stage-1 persistence by defaulting
@@ -101,6 +129,8 @@ actor ChallengeStore {
             subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle) ?? ""
             unlockAchievement = try c.decodeIfPresent(AchievementEngine.AchievementType.self, forKey: .unlockAchievement)
             catalogId = try c.decodeIfPresent(String.self, forKey: .catalogId)
+            // Stage 2.2+ field; pre-existing challenges default to solo.
+            scope = try c.decodeIfPresent(Scope.self, forKey: .scope) ?? .solo
         }
 
         /// Memberwise init for code-created challenges. Keeps the old call
@@ -119,7 +149,8 @@ actor ChallengeStore {
             difficulty: Difficulty = .easy,
             subtitle: String = "",
             unlockAchievement: AchievementEngine.AchievementType? = nil,
-            catalogId: String? = nil
+            catalogId: String? = nil,
+            scope: Scope = .solo
         ) {
             self.id = id
             self.title = title
@@ -135,6 +166,7 @@ actor ChallengeStore {
             self.subtitle = subtitle
             self.unlockAchievement = unlockAchievement
             self.catalogId = catalogId
+            self.scope = scope
         }
     }
 
@@ -255,10 +287,17 @@ actor ChallengeStore {
     /// the same catalog entry — prevents accidental duplicates when the user
     /// taps Start twice.
     @discardableResult
-    func startFromCatalog(_ entry: ChallengeCatalog.Entry) -> Challenge? {
+    func startFromCatalog(
+        _ entry: ChallengeCatalog.Entry,
+        scope: Scope = .solo
+    ) -> Challenge? {
         let now = Date()
+        // Only block duplicate catalog starts within the SAME scope. A user
+        // can run a catalog entry solo AND share it to a circle at the same
+        // time — those are distinct instances.
         let hasActive = challenges.contains { c in
             c.catalogId == entry.id && !c.isCompleted && c.endDate >= now
+                && c.scope == scope
         }
         guard !hasActive else { return nil }
 
@@ -277,7 +316,8 @@ actor ChallengeStore {
             difficulty: entry.difficulty,
             subtitle: entry.subtitle,
             unlockAchievement: entry.unlockAchievement,
-            catalogId: entry.id
+            catalogId: entry.id,
+            scope: scope
         )
         challenges.append(challenge)
         saveToDisk()
@@ -359,6 +399,33 @@ actor ChallengeStore {
         }
 
         saveToDisk()
+
+        // M2.2: for every active circle-scoped challenge, push the caller's
+        // current value to Supabase so teammates see updated progress.
+        // Fire-and-forget — failures (offline, session expired) just mean
+        // the next updateProgress() run will try again.
+        await syncCircleScoresToSupabase()
+    }
+
+    /// Upload current values for all active circle-scoped challenges via
+    /// `CoopChallengeSync.uploadMyScore`. Only touches challenges whose
+    /// `scope.circleChallengeId` is set. Called from the end of
+    /// `updateProgress()`.
+    private func syncCircleScoresToSupabase() async {
+        for c in challenges {
+            guard !c.isCompleted,
+                  c.endDate >= Date(),
+                  let remoteChallengeId = c.scope.circleChallengeId,
+                  let uuid = UUID(uuidString: remoteChallengeId) else { continue }
+
+            // Best-effort upload. Any failure is swallowed — the next run of
+            // updateProgress (on foreground, transaction sync, background
+            // task) will retry.
+            try? await CoopChallengeSync.shared.uploadMyScore(
+                challengeId: uuid,
+                value: c.currentValue
+            )
+        }
     }
 
     /// Fire off the post-completion reward pipeline: achievement unlock +

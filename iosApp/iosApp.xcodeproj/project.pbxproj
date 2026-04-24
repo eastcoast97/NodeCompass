@@ -89,6 +89,7 @@
 		909D5D5555AA53FAE0A81009 /* CirclesRemoteSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7565BC061C221EBB130E7DC0 /* CirclesRemoteSync.swift */; };
 		91AC223FD164D788B3E6D39F /* AchievementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E158AD4F1F8E5515D1DF974 /* AchievementsView.swift */; };
 		9269EDD21DFD43A131AB00FE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DB86A1324A5D8F0E6E7BBF /* SettingsView.swift */; };
+		92C8C0F7FF856B8A544ABE53 /* CircleChallengeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748C20D02FA1B5B6F3B8965C /* CircleChallengeDetailView.swift */; };
 		9416A7BFE34CD052729D5FB3 /* DataExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5963D0FFF0E1877E18CE9BE9 /* DataExportView.swift */; };
 		95F0B6B6CA6CBC324CEC1BD1 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A411C8151B9626697390188 /* OnboardingView.swift */; };
 		9840498E6D5690FE2ED9F9B1 /* HabitTrackerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F167E133E305C4DFEEACB /* HabitTrackerView.swift */; };
@@ -109,6 +110,7 @@
 		B23F47210B777B97C9482A3E /* AnomalyDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2011348C133076607AE42341 /* AnomalyDetector.swift */; };
 		B2A1BD17C5D235607CF24E6F /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E83E8DC1255E73A5744FA1E /* DashboardView.swift */; };
 		B398A5441653616791323676 /* CreateCircleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDE653BC2AD2ACC79675FDF /* CreateCircleSheet.swift */; };
+		B5198F5669B3F8D4E5BFF393 /* CoopChallengeSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818913308494ACD916A14FCB /* CoopChallengeSync.swift */; };
 		B6BE1B3D4F6134865B89E5E1 /* CancelledSubscriptionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01265215010A0D666A3A2604 /* CancelledSubscriptionsStore.swift */; };
 		B7C4F6137AC8345E71E92063 /* LinkKit in Frameworks */ = {isa = PBXBuildFile; productRef = 328EC003D8E4D9BF9601BD48 /* LinkKit */; };
 		B9A6BAF0A3CD112CEC7ADCB4 /* MorningBriefEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E402707330EDD557F0CEC05 /* MorningBriefEngine.swift */; };
@@ -195,6 +197,7 @@
 		6CC685096E7916360F2118B4 /* AppLearningStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLearningStage.swift; sourceTree = "<group>"; };
 		6D44EE992A89B88F50C21816 /* ChallengeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeStore.swift; sourceTree = "<group>"; };
 		7256ABCE120F4DD1552AEA2F /* MonthlyWrappedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyWrappedView.swift; sourceTree = "<group>"; };
+		748C20D02FA1B5B6F3B8965C /* CircleChallengeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleChallengeDetailView.swift; sourceTree = "<group>"; };
 		7565BC061C221EBB130E7DC0 /* CirclesRemoteSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CirclesRemoteSync.swift; sourceTree = "<group>"; };
 		76860E48ED8E2F855A6B4DD5 /* SmartCategorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCategorizer.swift; sourceTree = "<group>"; };
 		768C496DD9C11F0BA91CEE6A /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
@@ -206,6 +209,7 @@
 		7CA71EED4FA33CE473E23E29 /* WeeklyDigestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyDigestView.swift; sourceTree = "<group>"; };
 		7CAD977754992CB9B37FA27B /* ChallengeShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeShareCard.swift; sourceTree = "<group>"; };
 		7D795C7A5B8E99DF66BB27DA /* InsightsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsViewModel.swift; sourceTree = "<group>"; };
+		818913308494ACD916A14FCB /* CoopChallengeSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoopChallengeSync.swift; sourceTree = "<group>"; };
 		8286F5C87CCDECE6C30C3A24 /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
 		85DE8D927EC9BFDFEF39DC53 /* FoodLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodLogView.swift; sourceTree = "<group>"; };
 		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -347,6 +351,7 @@
 				47958E43A494FA8EE927F4A3 /* CategoryBreakdownView.swift */,
 				7CAD977754992CB9B37FA27B /* ChallengeShareCard.swift */,
 				C69DFC2ABC6818CCBF21C7C4 /* ChallengesView.swift */,
+				748C20D02FA1B5B6F3B8965C /* CircleChallengeDetailView.swift */,
 				90A15D9A27EF45D0B04096EF /* CircleDetailView.swift */,
 				2D70D827B1CEF8C9AF59C7F2 /* CirclesView.swift */,
 				DEDE653BC2AD2ACC79675FDF /* CreateCircleSheet.swift */,
@@ -480,6 +485,7 @@
 				099B3B899732BCCE87EA9EE7 /* AuthService.swift */,
 				01265215010A0D666A3A2604 /* CancelledSubscriptionsStore.swift */,
 				7565BC061C221EBB130E7DC0 /* CirclesRemoteSync.swift */,
+				818913308494ACD916A14FCB /* CoopChallengeSync.swift */,
 				5E3F3A380E7CE9962A1E6ACA /* FoodDeliveryParser.swift */,
 				60E952FB2367F2A7E2A989D4 /* FoodOrderScraper.swift */,
 				A59739E4F9B3F83F237819C2 /* GmailService.swift */,
@@ -610,12 +616,14 @@
 				650D2B05BEE0B184CECECCAE /* ChallengeShareCard.swift in Sources */,
 				BBCE8F26E8ABD176DA343419 /* ChallengeStore.swift in Sources */,
 				4D34EDCB811D431AB8C5879A /* ChallengesView.swift in Sources */,
+				92C8C0F7FF856B8A544ABE53 /* CircleChallengeDetailView.swift in Sources */,
 				2F9FC0CCB903FD7DA652D288 /* CircleDetailView.swift in Sources */,
 				909D5D5555AA53FAE0A81009 /* CirclesRemoteSync.swift in Sources */,
 				BFA021D3B1A032B52D1D962F /* CirclesView.swift in Sources */,
 				E725F6A479BDCEDB7AE33910 /* ComparisonEngine.swift in Sources */,
 				70A5FAD0BC3A55A0687F2ABE /* Config.swift in Sources */,
 				56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */,
+				B5198F5669B3F8D4E5BFF393 /* CoopChallengeSync.swift in Sources */,
 				B398A5441653616791323676 /* CreateCircleSheet.swift in Sources */,
 				65AB71CD9E31F5366A88E297 /* CrossSourceAnalyzer.swift in Sources */,
 				B2A1BD17C5D235607CF24E6F /* DashboardView.swift in Sources */,
