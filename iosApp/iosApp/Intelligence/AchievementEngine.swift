@@ -81,6 +81,40 @@ actor AchievementEngine {
         case weekStreak            // Used app 7 days in a row
         case monthStreak           // Used app 30 days in a row
 
+        // Cross-pillar (unlocked only from ChallengeStore)
+        case gymSaver              // "Gym visit = ₹200 saved elsewhere" combo
+        case walkNotDeliver        // Walked to a cafe instead of ordering delivery
+        case parkOverRestaurant    // Chose a park visit over trying a new restaurant
+        case moodOnWorkoutDay      // Mood went up on days with a workout
+        case cookAndWalk           // Cook + walk combo streak
+
+        /// Canonical display title — used by unlockFromChallenge to build the
+        /// Achievement record consistently. Existing achievements that are
+        /// unlocked elsewhere (via evaluateToday) use inline titles there;
+        /// cross-pillar ones only have a single source of truth so they live
+        /// here.
+        var crossPillarTitle: String {
+            switch self {
+            case .gymSaver:             return "Gym Saver"
+            case .walkNotDeliver:       return "Footwork > Delivery"
+            case .parkOverRestaurant:   return "Outdoor Over Outing"
+            case .moodOnWorkoutDay:     return "Mood Mover"
+            case .cookAndWalk:          return "Cook + Walk Combo"
+            default:                    return "Achievement"
+            }
+        }
+
+        var crossPillarDescription: String {
+            switch self {
+            case .gymSaver:             return "Paired gym visits with real savings"
+            case .walkNotDeliver:       return "Walked to a cafe instead of ordering in"
+            case .parkOverRestaurant:   return "Chose a park over a new restaurant"
+            case .moodOnWorkoutDay:     return "Workouts lifted your mood"
+            case .cookAndWalk:          return "Home-cooked and moved on the same day"
+            default:                    return ""
+            }
+        }
+
         var icon: String {
             switch self {
             case .budgetStreak3, .budgetStreak7, .budgetStreak30: return NC.currencyIconCircle
@@ -96,6 +130,11 @@ actor AchievementEngine {
             case .explorer: return "map.fill"
             case .scoreAbove80, .scoreAbove80Streak7: return "star.fill"
             case .weekStreak, .monthStreak: return "flame.fill"
+            case .gymSaver:             return "dumbbell.fill"
+            case .walkNotDeliver:       return "figure.walk"
+            case .parkOverRestaurant:   return "tree.fill"
+            case .moodOnWorkoutDay:     return "face.smiling.fill"
+            case .cookAndWalk:          return "sparkles"
             }
         }
 
@@ -114,6 +153,9 @@ actor AchievementEngine {
             case .earlyBird, .explorer, .scoreAbove80,
                  .scoreAbove80Streak7, .weekStreak, .monthStreak:
                 return "routine"
+            case .gymSaver, .walkNotDeliver, .parkOverRestaurant,
+                 .moodOnWorkoutDay, .cookAndWalk:
+                return "cross"
             }
         }
     }
@@ -307,6 +349,49 @@ actor AchievementEngine {
 
     func streakDays(for type: StreakType) -> Int {
         state.streaks.first { $0.type == type }?.currentDays ?? 0
+    }
+
+    // MARK: - Challenge-driven Unlocks
+
+    /// Unlock an achievement directly from a completed challenge.
+    /// Idempotent — returns nil if the user has already earned this type.
+    /// Uses the achievement's `crossPillarTitle` / `crossPillarDescription`
+    /// for cross-pillar cases, or a reasonable default otherwise.
+    func unlockFromChallenge(_ type: AchievementType) -> Achievement? {
+        guard !state.earned.contains(where: { $0.type == type }) else { return nil }
+
+        // Pick display text. For the 5 cross-pillar types we have dedicated
+        // copy on the enum. For other types we reuse a generic title/desc;
+        // those types are also reachable through evaluateToday(), where richer
+        // copy lives, but unlocking via challenge is allowed as an alternative
+        // path (e.g. a 7-day step streak challenge unlocking .steps10KStreak7).
+        let title: String
+        let desc: String
+        switch type {
+        case .gymSaver, .walkNotDeliver, .parkOverRestaurant,
+             .moodOnWorkoutDay, .cookAndWalk:
+            title = type.crossPillarTitle
+            desc = type.crossPillarDescription
+        default:
+            // Fallback copy for achievements usually awarded by evaluateToday.
+            // The specific titles set there take precedence if ever re-awarded,
+            // because the idempotency guard above prevents duplicates.
+            title = type.crossPillarTitle  // Returns "Achievement" for non-cross
+            desc = "Challenge completed"
+        }
+
+        let achievement = Achievement(
+            id: UUID().uuidString,
+            type: type,
+            title: title,
+            description: desc,
+            icon: type.icon,
+            earnedAt: Date(),
+            pillar: type.pillar
+        )
+        state.earned.append(achievement)
+        saveState()
+        return achievement
     }
 
     // All possible achievements for display (earned + locked)

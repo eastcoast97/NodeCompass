@@ -98,6 +98,12 @@ actor PatternEngine {
 
         // Update the user profile
         await updateProfile(from: events)
+
+        // Refresh challenge progress so the user's active challenges advance
+        // without requiring them to open the Challenges sheet. Completions
+        // here also fire the reward pipeline (achievement unlock + local
+        // push) through `ChallengeStore.rewardCompletion(...)`.
+        await ChallengeStore.shared.updateProgress()
     }
 
     /// All active insights, sorted by priority (highest first) then date (newest first).

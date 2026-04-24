@@ -10,6 +10,45 @@ actor ChallengeStore {
 
     // MARK: - Models
 
+    /// A pillar tag for categorising challenges in the catalog. Uses String raw
+    /// values so the "pillar" concept stays consistent with AchievementEngine,
+    /// which already uses bare string pillars ("wealth", "health", etc.).
+    enum Pillar: String, Codable, CaseIterable {
+        case wealth, health, mind, cross
+
+        var displayName: String {
+            switch self {
+            case .wealth: return "Wealth"
+            case .health: return "Health"
+            case .mind:   return "Mind"
+            case .cross:  return "Cross-pillar"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .wealth: return "dollarsign.circle.fill"
+            case .health: return "heart.fill"
+            case .mind:   return "brain.head.profile"
+            case .cross:  return "sparkles"
+            }
+        }
+    }
+
+    /// Difficulty tier for catalog entries. Used for surfaced hints only —
+    /// does not affect progress tracking logic.
+    enum Difficulty: String, Codable, CaseIterable {
+        case easy, medium, hard
+
+        var displayName: String {
+            switch self {
+            case .easy:   return "Easy"
+            case .medium: return "Medium"
+            case .hard:   return "Hard"
+            }
+        }
+    }
+
     struct Challenge: Codable, Identifiable {
         let id: String
         var title: String
@@ -20,6 +59,83 @@ actor ChallengeStore {
         var endDate: Date
         var isCompleted: Bool
         var completedAt: Date?
+
+        // --- Stage 1 additions (migration-safe via custom decoder below) ---
+
+        /// Pillar tag for catalog filtering and UI accent colour.
+        var pillar: Pillar
+        /// Difficulty tier — shown as a chip on the catalog card.
+        var difficulty: Difficulty
+        /// Motivational one-liner shown under the title. Empty string for
+        /// challenges migrated from pre-Stage-1 persistence.
+        var subtitle: String
+        /// Optional link into AchievementEngine. When a challenge with this
+        /// field set completes, the corresponding badge is unlocked.
+        var unlockAchievement: AchievementEngine.AchievementType?
+        /// Catalog entry id the challenge was started from. Used to prevent
+        /// duplicate concurrent instances of the same catalog entry.
+        var catalogId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, title, type, targetValue, currentValue
+            case startDate, endDate, isCompleted, completedAt
+            case pillar, difficulty, subtitle, unlockAchievement, catalogId
+        }
+
+        /// Custom decoder that tolerates pre-Stage-1 persistence by defaulting
+        /// the new fields. Existing saved challenges decode cleanly; new fields
+        /// simply land as sensible defaults.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            title = try c.decode(String.self, forKey: .title)
+            type = try c.decode(ChallengeType.self, forKey: .type)
+            targetValue = try c.decode(Double.self, forKey: .targetValue)
+            currentValue = try c.decode(Double.self, forKey: .currentValue)
+            startDate = try c.decode(Date.self, forKey: .startDate)
+            endDate = try c.decode(Date.self, forKey: .endDate)
+            isCompleted = try c.decode(Bool.self, forKey: .isCompleted)
+            completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
+            pillar = try c.decodeIfPresent(Pillar.self, forKey: .pillar) ?? .wealth
+            difficulty = try c.decodeIfPresent(Difficulty.self, forKey: .difficulty) ?? .easy
+            subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle) ?? ""
+            unlockAchievement = try c.decodeIfPresent(AchievementEngine.AchievementType.self, forKey: .unlockAchievement)
+            catalogId = try c.decodeIfPresent(String.self, forKey: .catalogId)
+        }
+
+        /// Memberwise init for code-created challenges. Keeps the old call
+        /// sites compiling (catalogId / subtitle / etc. default to nil / "").
+        init(
+            id: String,
+            title: String,
+            type: ChallengeType,
+            targetValue: Double,
+            currentValue: Double,
+            startDate: Date,
+            endDate: Date,
+            isCompleted: Bool,
+            completedAt: Date?,
+            pillar: Pillar = .wealth,
+            difficulty: Difficulty = .easy,
+            subtitle: String = "",
+            unlockAchievement: AchievementEngine.AchievementType? = nil,
+            catalogId: String? = nil
+        ) {
+            self.id = id
+            self.title = title
+            self.type = type
+            self.targetValue = targetValue
+            self.currentValue = currentValue
+            self.startDate = startDate
+            self.endDate = endDate
+            self.isCompleted = isCompleted
+            self.completedAt = completedAt
+            self.pillar = pillar
+            self.difficulty = difficulty
+            self.subtitle = subtitle
+            self.unlockAchievement = unlockAchievement
+            self.catalogId = catalogId
+        }
     }
 
     enum ChallengeType: String, Codable, CaseIterable {
@@ -112,6 +228,7 @@ actor ChallengeStore {
     // MARK: - Actions
 
     /// Create a new challenge of the given type, target, and duration.
+    /// Legacy entry point — used by NewChallengeSheet for custom challenges.
     func createChallenge(type: ChallengeType, target: Double, days: Int) {
         let now = Date()
         let end = Calendar.current.date(byAdding: .day, value: days, to: now) ?? now
@@ -128,6 +245,43 @@ actor ChallengeStore {
         )
         challenges.append(challenge)
         saveToDisk()
+    }
+
+    /// Start a challenge from a `ChallengeCatalog.Entry`. Carries forward the
+    /// catalog's pillar / difficulty / subtitle / unlockAchievement so the
+    /// Active card can render richly and completion unlocks the right badge.
+    ///
+    /// No-op if the user already has an active (non-completed) challenge from
+    /// the same catalog entry — prevents accidental duplicates when the user
+    /// taps Start twice.
+    @discardableResult
+    func startFromCatalog(_ entry: ChallengeCatalog.Entry) -> Challenge? {
+        let now = Date()
+        let hasActive = challenges.contains { c in
+            c.catalogId == entry.id && !c.isCompleted && c.endDate >= now
+        }
+        guard !hasActive else { return nil }
+
+        let end = Calendar.current.date(byAdding: .day, value: entry.durationDays, to: now) ?? now
+        let challenge = Challenge(
+            id: UUID().uuidString,
+            title: entry.title,
+            type: entry.type,
+            targetValue: entry.targetValue,
+            currentValue: 0,
+            startDate: now,
+            endDate: end,
+            isCompleted: false,
+            completedAt: nil,
+            pillar: entry.pillar,
+            difficulty: entry.difficulty,
+            subtitle: entry.subtitle,
+            unlockAchievement: entry.unlockAchievement,
+            catalogId: entry.id
+        )
+        challenges.append(challenge)
+        saveToDisk()
+        return challenge
     }
 
     /// Evaluate each active challenge against real data.
@@ -191,6 +345,13 @@ actor ChallengeStore {
             if challenges[i].currentValue >= challenge.targetValue && !challenges[i].isCompleted {
                 challenges[i].isCompleted = true
                 challenges[i].completedAt = now
+
+                // Reward the user: unlock linked achievement (if any) and
+                // surface a local notification via the shared NotificationEngine.
+                // NotificationEngine enforces its own rate limits (3/day,
+                // 12h per-type cooldown) so repeated completions on the same
+                // day won't spam.
+                await rewardCompletion(of: challenges[i])
             }
 
             // Also mark failed if past endDate and not completed
@@ -198,6 +359,36 @@ actor ChallengeStore {
         }
 
         saveToDisk()
+    }
+
+    /// Fire off the post-completion reward pipeline: achievement unlock +
+    /// local push notification. Called once per challenge when it flips to
+    /// `isCompleted == true`.
+    private func rewardCompletion(of challenge: Challenge) async {
+        // 1. Unlock linked achievement, if the catalog entry declared one.
+        var unlockedTitle: String?
+        if let achievementType = challenge.unlockAchievement {
+            if let achievement = await AchievementEngine.shared.unlockFromChallenge(achievementType) {
+                unlockedTitle = achievement.title
+            }
+        }
+
+        // 2. Surface a local push notification, wrapped as an Insight so the
+        //    existing NotificationEngine rate-limiting applies.
+        let body: String
+        if let badge = unlockedTitle {
+            body = "Unlocked the '\(badge)' badge."
+        } else {
+            body = "You hit your target — nicely done."
+        }
+        let insight = Insight(
+            type: .milestone,
+            title: "🎉 Challenge complete: \(challenge.title)",
+            body: body,
+            priority: .medium,
+            category: challenge.pillar.rawValue
+        )
+        await NotificationEngine.shared.scheduleIfAllowed(insight)
     }
 
     /// Delete a challenge by ID.
