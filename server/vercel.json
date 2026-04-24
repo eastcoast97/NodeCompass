@@ -10,6 +10,7 @@
     { "src": "/api/plaid_webhook", "dest": "/api/plaid_webhook.js" },
     { "src": "/api/transactions", "dest": "/api/transactions.js" },
     { "src": "/api/accounts", "dest": "/api/accounts.js" },
-    { "src": "/api/updates", "dest": "/api/updates.js" }
+    { "src": "/api/updates", "dest": "/api/updates.js" },
+    { "src": "/api/send_push", "dest": "/api/send_push.js" }
   ]
 }
