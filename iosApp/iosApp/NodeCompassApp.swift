@@ -52,6 +52,14 @@ struct NodeCompassApp: App {
             GIDSignIn.sharedInstance.configuration = config
         }
 
+        // Initialize Supabase client + re-sync identity profile if needed.
+        // Safe to call even when no circle has been created — the client is
+        // lazy, the profile sync is a no-op when the user hasn't signed in.
+        NCBackend.bootstrap()
+        Task { @MainActor in
+            await UserIdentityProfile.shared.syncIfNeeded()
+        }
+
         // Register background tasks for intelligence analysis
         BackgroundScheduler.register()
 

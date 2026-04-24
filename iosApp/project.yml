@@ -12,6 +12,9 @@ packages:
   PlaidLink:
     url: https://github.com/plaid/plaid-link-ios-spm
     from: "6.0.0"
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.5.0"
 
 targets:
   iosApp:
@@ -97,3 +100,5 @@ targets:
         product: GoogleSignInSwift
       - package: PlaidLink
         product: LinkKit
+      - package: Supabase
+        product: Supabase
