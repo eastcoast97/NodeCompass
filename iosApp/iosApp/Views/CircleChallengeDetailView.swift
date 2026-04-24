@@ -14,6 +14,10 @@ struct CircleChallengeDetailView: View {
     @State private var members: [CirclesRemoteSync.CircleMember] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    /// When non-nil, the ReactionPicker sheet is presented targeting this
+    /// member. Distinguishes tapping yourself (no-op) from tapping a
+    /// teammate (opens picker).
+    @State private var reactionTarget: CirclesRemoteSync.CircleMember?
 
     var body: some View {
         ScrollView {
@@ -92,15 +96,47 @@ struct CircleChallengeDetailView: View {
             } else {
                 LazyVStack(spacing: 8) {
                     ForEach(sortedScores, id: \.anonUserId) { score in
-                        LeaderboardRow(
-                            score: score,
-                            member: memberForScore(score),
-                            target: challenge.targetValue,
-                            accentColor: accentColor
-                        )
+                        let isMe = score.anonUserId == AnonymousIdentity.shared.anonUserId
+                        let member = memberForScore(score)
+
+                        if isMe {
+                            // Yourself — no reaction picker, just the row.
+                            LeaderboardRow(
+                                score: score,
+                                member: member,
+                                target: challenge.targetValue,
+                                accentColor: accentColor
+                            )
+                        } else {
+                            // Teammate — tap to send a reaction.
+                            Button {
+                                if let m = member {
+                                    Haptic.light()
+                                    reactionTarget = m
+                                }
+                            } label: {
+                                LeaderboardRow(
+                                    score: score,
+                                    member: member,
+                                    target: challenge.targetValue,
+                                    accentColor: accentColor
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
+        }
+        .sheet(item: $reactionTarget) { target in
+            ReactionPicker(
+                challengeId: challenge.id,
+                recipientUserId: target.anonUserId,
+                recipientDisplayName: target.displayName,
+                recipientEmoji: target.avatarEmoji
+            )
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
         }
     }
 

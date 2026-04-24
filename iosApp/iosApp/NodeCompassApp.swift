@@ -4,6 +4,29 @@ import CoreLocation
 import HealthKit
 import UserNotifications
 
+/// AppDelegate shim for UIKit-only APIs we need from SwiftUI — currently
+/// just APNs remote-notification registration callbacks. Wired in via
+/// `@UIApplicationDelegateAdaptor` on `NodeCompassApp`.
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            await PushNotificationService.shared.handleAPNSToken(deviceToken)
+        }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            PushNotificationService.shared.handleAPNSError(error)
+        }
+    }
+}
+
 /// Handles notification display and user actions.
 class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationDelegate()
@@ -31,6 +54,14 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             if actionId == UNNotificationDefaultActionIdentifier {
                 NotificationCenter.default.post(name: NSNotification.Name("openHeatmap"), object: nil)
             }
+        case "REACTION":
+            // Tapped an APNs reaction push — open the Reactions Inbox.
+            if actionId == UNNotificationDefaultActionIdentifier {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("openReactionInbox"),
+                    object: nil
+                )
+            }
         default:
             break
         }
@@ -41,6 +72,7 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 
 @main
 struct NodeCompassApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authService = AuthService()
     @StateObject private var transactionStore = TransactionStore.shared
     @State private var onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
@@ -76,6 +108,14 @@ struct NodeCompassApp: App {
 
         // Start listening for location events to auto-complete habits in real-time
         HabitAutoTracker.shared.startListening()
+
+        // If the user is already signed in (identity persisted in Keychain
+        // across app launches), re-register for APNs on every launch. This
+        // makes sure Apple re-delivers the device token so we can refresh
+        // it in Supabase when iOS rotates tokens.
+        Task { @MainActor in
+            PushNotificationService.shared.requestAuthorizationAndRegister()
+        }
     }
 
     private func setupNotifications() {

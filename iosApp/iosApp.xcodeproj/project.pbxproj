@@ -21,6 +21,7 @@
 		0B10CDDFAC8D4D7D371ECEC6 /* LifeScoreEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6213C92BE7F89BF2DC5CE589 /* LifeScoreEngine.swift */; };
 		0BFE2453982B24CCB51203E5 /* EmailSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565DFBF3625B3CE3B402F579 /* EmailSyncView.swift */; };
 		11E7C7EF9343A220AB8E8638 /* GmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59739E4F9B3F83F237819C2 /* GmailService.swift */; };
+		13326D7942B326CB451012A9 /* ReactionPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B868E72036AFDE7AD024F3 /* ReactionPicker.swift */; };
 		135660C10BB7B48F210F282D /* FoodAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E0C2548B93274577920891 /* FoodAnalyzer.swift */; };
 		170FB75666813C478D84944B /* ChallengeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635781E2BE616679522C62EC /* ChallengeCatalog.swift */; };
 		18F2C9BFC1AD9B9177080AE9 /* SavingsGoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B213151CFB637FF24CAB8518 /* SavingsGoalsView.swift */; };
@@ -115,6 +116,7 @@
 		B7C4F6137AC8345E71E92063 /* LinkKit in Frameworks */ = {isa = PBXBuildFile; productRef = 328EC003D8E4D9BF9601BD48 /* LinkKit */; };
 		B9A6BAF0A3CD112CEC7ADCB4 /* MorningBriefEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E402707330EDD557F0CEC05 /* MorningBriefEngine.swift */; };
 		BBCE8F26E8ABD176DA343419 /* ChallengeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D44EE992A89B88F50C21816 /* ChallengeStore.swift */; };
+		BE2EA4B9E759EC02C03A6185 /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DD6770FA7AD204286F207C /* PushNotificationService.swift */; };
 		BE82D07869D968419F204B3E /* InsightsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D795C7A5B8E99DF66BB27DA /* InsightsViewModel.swift */; };
 		BFA021D3B1A032B52D1D962F /* CirclesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D70D827B1CEF8C9AF59C7F2 /* CirclesView.swift */; };
 		C51A54D1D425B7A94A82A5D8 /* LocationHeatmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28B4BBB6CE7DB59B3067ECF4 /* LocationHeatmapView.swift */; };
@@ -132,12 +134,14 @@
 		D9BA80CC24CCC8211010381A /* TransactionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0B19F4FCBAB9EC25E497C0 /* TransactionStore.swift */; };
 		DDBC9984B563DBE21E6F1D24 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF068946FB82B2B090E9859 /* InsightsView.swift */; };
 		E04BDF60961932EED8648493 /* LocationGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9515B652DFD608407284B391 /* LocationGateView.swift */; };
+		E5ADA427543E73DA9B03F072 /* ReactionsSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED6549F0F8CD5F8A91DE55D /* ReactionsSync.swift */; };
 		E725F6A479BDCEDB7AE33910 /* ComparisonEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79FE36B8680774BD218F485 /* ComparisonEngine.swift */; };
 		EBA10633F15FEAE8A33D25C6 /* SmartCategorizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76860E48ED8E2F855A6B4DD5 /* SmartCategorizer.swift */; };
 		EDA15DA0173943D9665122C6 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8286F5C87CCDECE6C30C3A24 /* EventStore.swift */; };
 		F30C981F1655B1028A6BD528 /* HabitAutoTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3890BC4F96CB2A1D7108D321 /* HabitAutoTracker.swift */; };
 		F4D4F30AC936DEE08DD7259A /* VoiceInputEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98088B6DC866301B12A70A74 /* VoiceInputEngine.swift */; };
 		FB39938CC4E2E7B734725E8C /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F99A6E0E5C91E3FB013D695 /* KeychainService.swift */; };
+		FE396CDCB91CAED3E7D0276E /* ReactionInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5590137BA28604CA4661F8A /* ReactionInbox.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -156,6 +160,7 @@
 		1E7762AAB5F8E3D142BC609B /* MonthlyWrappedEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyWrappedEngine.swift; sourceTree = "<group>"; };
 		1F0B19F4FCBAB9EC25E497C0 /* TransactionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionStore.swift; sourceTree = "<group>"; };
 		2011348C133076607AE42341 /* AnomalyDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnomalyDetector.swift; sourceTree = "<group>"; };
+		22DD6770FA7AD204286F207C /* PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationService.swift; sourceTree = "<group>"; };
 		247CB0CBF0D00DFF4B5458F9 /* TransactionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionBridge.swift; sourceTree = "<group>"; };
 		289642ECD9EC4E523F8BF635 /* SpendingPredictor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingPredictor.swift; sourceTree = "<group>"; };
 		28B4BBB6CE7DB59B3067ECF4 /* LocationHeatmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationHeatmapView.swift; sourceTree = "<group>"; };
@@ -228,11 +233,13 @@
 		9BDEA41C478261CDB5A7DD43 /* CrossSourceAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossSourceAnalyzer.swift; sourceTree = "<group>"; };
 		9E402707330EDD557F0CEC05 /* MorningBriefEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningBriefEngine.swift; sourceTree = "<group>"; };
 		9EC7405D2681CE62ED93C4EF /* WhatIfSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatIfSimulator.swift; sourceTree = "<group>"; };
+		9ED6549F0F8CD5F8A91DE55D /* ReactionsSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionsSync.swift; sourceTree = "<group>"; };
 		9FD71F36E68D40DCEFCBEC1D /* NodeCompassApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeCompassApp.swift; sourceTree = "<group>"; };
 		A0276F01AE57228A57F07C4C /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		A0C17B88CBA08421F33F6735 /* LocationCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationCollector.swift; sourceTree = "<group>"; };
 		A3368A9F0A8103F4EBF83126 /* BudgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetStore.swift; sourceTree = "<group>"; };
 		A41AFD705E440A5037BF4BA4 /* EnterInviteCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnterInviteCodeSheet.swift; sourceTree = "<group>"; };
+		A5590137BA28604CA4661F8A /* ReactionInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionInbox.swift; sourceTree = "<group>"; };
 		A59739E4F9B3F83F237819C2 /* GmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GmailService.swift; sourceTree = "<group>"; };
 		A884C092E6C8D6368F25F361 /* WeeklyDigestEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyDigestEngine.swift; sourceTree = "<group>"; };
 		AB5AF550ED8DA1804AF59669 /* VoiceInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputView.swift; sourceTree = "<group>"; };
@@ -262,6 +269,7 @@
 		DA62F42374D0530CFCD6CF7E /* SubscriptionCancelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCancelRegistry.swift; sourceTree = "<group>"; };
 		DCDBA9C20F150EA3E589017D /* BillCalendarEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillCalendarEngine.swift; sourceTree = "<group>"; };
 		DEDE653BC2AD2ACC79675FDF /* CreateCircleSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCircleSheet.swift; sourceTree = "<group>"; };
+		E3B868E72036AFDE7AD024F3 /* ReactionPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionPicker.swift; sourceTree = "<group>"; };
 		EA29550B57E517FA984E2F95 /* PersonalInfoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalInfoStore.swift; sourceTree = "<group>"; };
 		EC82BE74DFE9D7EF2258721D /* GroqService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqService.swift; sourceTree = "<group>"; };
 		ECF316164EDDAAE8DD404D1D /* HealthCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthCollector.swift; sourceTree = "<group>"; };
@@ -378,6 +386,8 @@
 				6A411C8151B9626697390188 /* OnboardingView.swift */,
 				48F27151AE0536DB520ED6E2 /* ProfileSetupSheet.swift */,
 				8A641F6CE2B0D06658BC63B9 /* QuickFoodLogSheet.swift */,
+				A5590137BA28604CA4661F8A /* ReactionInbox.swift */,
+				E3B868E72036AFDE7AD024F3 /* ReactionPicker.swift */,
 				B213151CFB637FF24CAB8518 /* SavingsGoalsView.swift */,
 				92DB86A1324A5D8F0E6E7BBF /* SettingsView.swift */,
 				4785B0598C2AFB940DC4030F /* SmartComparisonView.swift */,
@@ -493,6 +503,8 @@
 				0F99A6E0E5C91E3FB013D695 /* KeychainService.swift */,
 				361F214944A93CF2BBA19220 /* MerchantNameResolver.swift */,
 				334C63DA2F79650F4421D505 /* PlaidService.swift */,
+				22DD6770FA7AD204286F207C /* PushNotificationService.swift */,
+				9ED6549F0F8CD5F8A91DE55D /* ReactionsSync.swift */,
 				7892BAEBF7D8582AC143711F /* SmartCancellationService.swift */,
 				76860E48ED8E2F855A6B4DD5 /* SmartCategorizer.swift */,
 				DA62F42374D0530CFCD6CF7E /* SubscriptionCancelRegistry.swift */,
@@ -686,7 +698,11 @@
 				B1751DF92A391623C19894D6 /* PlaceResolver.swift in Sources */,
 				058686C8E6D871ED84DA9101 /* PlaidService.swift in Sources */,
 				9AD0AE23B0F1F68C6FB5C37B /* ProfileSetupSheet.swift in Sources */,
+				BE2EA4B9E759EC02C03A6185 /* PushNotificationService.swift in Sources */,
 				A8CC8A38F6C1CFD293D4C8F7 /* QuickFoodLogSheet.swift in Sources */,
+				FE396CDCB91CAED3E7D0276E /* ReactionInbox.swift in Sources */,
+				13326D7942B326CB451012A9 /* ReactionPicker.swift in Sources */,
+				E5ADA427543E73DA9B03F072 /* ReactionsSync.swift in Sources */,
 				A20B58593C7FB291B85A3BED /* SavingsGoalStore.swift in Sources */,
 				18F2C9BFC1AD9B9177080AE9 /* SavingsGoalsView.swift in Sources */,
 				9269EDD21DFD43A131AB00FE /* SettingsView.swift in Sources */,

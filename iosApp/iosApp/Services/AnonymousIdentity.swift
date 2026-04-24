@@ -181,6 +181,12 @@ final class AnonymousIdentity: NSObject, ObservableObject {
 
         pendingContinuation?.resume(returning: anonId)
         pendingContinuation = nil
+
+        // First SIWA sign-in → now we have both an anon identity AND a
+        // Supabase session, so we can register for APNs and upload the
+        // device token. Safe to call every sign-in — iOS caches the token
+        // and the server RPC is an UPSERT.
+        PushNotificationService.shared.requestAuthorizationAndRegister()
     }
 
     private func fail(with error: AnonymousIdentityError) {
