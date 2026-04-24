@@ -14,3 +14,4 @@
     { "src": "/api/send_push", "dest": "/api/send_push.js" }
   ]
 }
+// reset trigger 1777063639
