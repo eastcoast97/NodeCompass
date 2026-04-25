@@ -125,7 +125,17 @@ module.exports = async (req, res) => {
       apnsBody: result.body || null,
     });
   } catch (err) {
-    return res.status(500).json({ error: String(err.message || err) });
+    // Diagnostic: include a SAFE preview of the env var shape so we can see
+    // what format the key arrived in. Only first 30 + last 30 chars +
+    // length — never the full key.
+    const k = ENV.apnsPrivateKey || "";
+    const preview = k
+      ? `${k.slice(0, 30)}...${k.slice(-30)} (len=${k.length}, hasEscapedN=${k.includes("\\n")}, hasNL=${k.includes("\n")}, hasCR=${k.includes("\r")})`
+      : "MISSING";
+    return res.status(500).json({
+      error: String(err.message || err),
+      key_preview: preview,
+    });
   }
 };
 
