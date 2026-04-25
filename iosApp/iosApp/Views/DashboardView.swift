@@ -51,14 +51,10 @@ struct DashboardView: View {
     @State private var showFoodLog = false
     @State private var showGoals = false
     @State private var showProfile = false
-    @State private var showDigest = false
     @State private var showAchievements = false
-    @State private var showWhatIf = false
     @State private var showMood = false
     @State private var showCoach = false
-    @State private var showWrapped = false
     @State private var showHeatmap = false
-    @State private var showComparison = false
     @State private var showExportSheet = false
     @State private var pendingEntryToComplete: FoodStore.FoodLogEntry?
     @State private var nudges: [NudgeEngine.Nudge] = []
@@ -248,29 +244,6 @@ struct DashboardView: View {
 
                         Divider()
 
-                        if learningStage.allowsWeeklyDigest {
-                            Button { Haptic.light(); showDigest = true } label: {
-                                Label("Weekly Digest", systemImage: "doc.text.fill")
-                            }
-                            Button { Haptic.light(); showComparison = true } label: {
-                                Label("Compare Weeks", systemImage: "chart.bar.xaxis")
-                            }
-                        }
-
-                        if learningStage.allowsMonthlyWrapped {
-                            Button { Haptic.light(); showWrapped = true } label: {
-                                Label("Monthly Wrapped", systemImage: "sparkles")
-                            }
-                        }
-
-                        if learningStage.allowsCrossSourceInsights {
-                            Button { Haptic.light(); showWhatIf = true } label: {
-                                Label("What If", systemImage: "wand.and.stars")
-                            }
-                        }
-
-                        Divider()
-
                         Button { Haptic.light(); showExportSheet = true } label: {
                             Label("Export Data", systemImage: "square.and.arrow.up")
                         }
@@ -322,14 +295,8 @@ struct DashboardView: View {
             FoodLogView()
                 .onDisappear { vm.load() }
         }
-        .sheet(isPresented: $showDigest) {
-            WeeklyDigestView()
-        }
         .sheet(isPresented: $showAchievements) {
             AchievementsView()
-        }
-        .sheet(isPresented: $showWhatIf) {
-            WhatIfView()
         }
         .sheet(isPresented: $showMood) {
             MoodCheckInView()
@@ -342,14 +309,8 @@ struct DashboardView: View {
         .sheet(isPresented: $showCoach) {
             LifeCoachView()
         }
-        .sheet(isPresented: $showWrapped) {
-            MonthlyWrappedView()
-        }
         .sheet(isPresented: $showHeatmap) {
             LocationHeatmapView()
-        }
-        .sheet(isPresented: $showComparison) {
-            SmartComparisonView()
         }
         .sheet(item: $pendingEntryToComplete) { entry in
             QuickFoodLogSheet(pendingEntry: entry)
@@ -810,20 +771,6 @@ struct DashboardView: View {
                     Haptic.light(); showGoals = true
                 }
             }
-            HStack(spacing: 10) {
-                QuickActionButton(icon: "chart.bar.xaxis", label: "Compare", color: .blue) {
-                    Haptic.light(); showComparison = true
-                }
-                QuickActionButton(icon: "doc.text.fill", label: "Digest", color: NC.teal) {
-                    Haptic.light(); showDigest = true
-                }
-                QuickActionButton(icon: "sparkles", label: "Wrapped", color: .indigo) {
-                    Haptic.light(); showWrapped = true
-                }
-                QuickActionButton(icon: "wand.and.stars", label: "What If", color: .green) {
-                    Haptic.light(); showWhatIf = true
-                }
-            }
         }
     }
 
@@ -887,7 +834,6 @@ struct DashboardView: View {
     private func handleNudgeAction(_ nudge: NudgeEngine.Nudge) {
         switch nudge.type {
         case .mealReminder: showFoodLog = true
-        case .weeklyReview: showDigest = true
         default: break
         }
     }

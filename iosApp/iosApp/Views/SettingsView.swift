@@ -276,7 +276,6 @@ struct SettingsView: View {
                         await ChallengeStore.shared.clearAll()
                         await SubscriptionManager.shared.clearAll()
                         await SavingsGoalStore.shared.clearAll()
-                        await MorningBriefEngine.shared.clearAll()
                         await WeatherCorrelation.shared.clearAll()
                     }
                 }

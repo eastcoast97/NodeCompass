@@ -76,12 +76,6 @@ actor AppLearningStage {
         /// Are goals available? Requires baseline data.
         var allowsGoals: Bool { self >= .tracking }
 
-        /// Are weekly digests available? Requires at least one full week.
-        var allowsWeeklyDigest: Bool { self >= .patterns }
-
-        /// Is monthly wrapped available? Requires at least ~3 weeks.
-        var allowsMonthlyWrapped: Bool { self >= .insights }
-
         /// Are cross-source insights surfaced?
         var allowsCrossSourceInsights: Bool { self >= .insights }
 

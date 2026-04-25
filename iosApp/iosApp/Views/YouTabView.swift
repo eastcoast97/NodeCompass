@@ -19,13 +19,6 @@ struct YouTabView: View {
     @State private var isRecategorizing = false
     @State private var showHeatmap = false
     @State private var showCoach = false
-    @State private var showWrapped = false
-    @State private var showHabits = false
-    @State private var showBudgets = false
-    @State private var showChallenges = false
-    @State private var showTrends = false
-    @State private var showSubscriptions = false
-    @State private var showSavings = false
     // TODO: [Stage 2.1] Replaces this with real Circles entry point
     @State private var showIdentityTest = false
     @State private var selectedTheme: String = UserDefaults.standard.string(forKey: "preferredColorScheme") ?? "system"
@@ -95,8 +88,6 @@ struct YouTabView: View {
                         await BillCalendarEngine.shared.clearAll()
                         await ChallengeStore.shared.clearAll()
                         await SubscriptionManager.shared.clearAll()
-                        await SavingsGoalStore.shared.clearAll()
-                        await MorningBriefEngine.shared.clearAll()
                         await WeatherCorrelation.shared.clearAll()
                     }
                 }
@@ -298,139 +289,6 @@ struct YouTabView: View {
 
                 Divider().padding(.leading, NC.dividerIndent)
 
-                Button { showWrapped = true } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "sparkles")
-                            .font(.subheadline)
-                            .foregroundStyle(.indigo)
-                            .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(.indigo.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Monthly Wrapped").font(.subheadline).foregroundStyle(.primary)
-                            Text("Your month in review").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .padding(NC.hPad)
-                }
-
-                Divider().padding(.leading, NC.dividerIndent)
-
-                Button { showHabits = true } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.green)
-                            .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Habits").font(.subheadline).foregroundStyle(.primary)
-                            Text("Track daily habits and streaks").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .padding(NC.hPad)
-                }
-
-                Divider().padding(.leading, NC.dividerIndent)
-
-                Button { showBudgets = true } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "chart.pie.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.orange)
-                            .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Budgets").font(.subheadline).foregroundStyle(.primary)
-                            Text("Per-category monthly budgets").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .padding(NC.hPad)
-                }
-
-                Divider().padding(.leading, NC.dividerIndent)
-
-                Button { showChallenges = true } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "flag.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.red)
-                            .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Challenges").font(.subheadline).foregroundStyle(.primary)
-                            Text("Short-term goals and streaks").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .padding(NC.hPad)
-                }
-
-                Divider().padding(.leading, NC.dividerIndent)
-
-                Button { showTrends = true } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "chart.xyaxis.line")
-                            .font(.subheadline)
-                            .foregroundStyle(NC.teal)
-                            .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(NC.teal.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Trends").font(.subheadline).foregroundStyle(.primary)
-                            Text("Spending and life score charts").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .padding(NC.hPad)
-                }
-
-                Divider().padding(.leading, NC.dividerIndent)
-
-                Button { showSubscriptions = true } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "repeat.circle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.purple)
-                            .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(.purple.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Subscriptions").font(.subheadline).foregroundStyle(.primary)
-                            Text("Manage recurring charges").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .padding(NC.hPad)
-                }
-
-                Divider().padding(.leading, NC.dividerIndent)
-
-                Button { showSavings = true } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "banknote.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(NC.teal)
-                            .frame(width: NC.iconSize, height: NC.iconSize)
-                            .background(NC.teal.opacity(0.1), in: RoundedRectangle(cornerRadius: NC.iconRadius))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Savings Goals").font(.subheadline).foregroundStyle(.primary)
-                            Text("Track progress toward big goals").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                    .padding(NC.hPad)
-                }
-
-                Divider().padding(.leading, NC.dividerIndent)
-
                 Button { showIdentityTest = true } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "person.3.sequence.fill")
@@ -452,13 +310,6 @@ struct YouTabView: View {
         }
         .sheet(isPresented: $showHeatmap) { LocationHeatmapView() }
         .sheet(isPresented: $showCoach) { LifeCoachView() }
-        .sheet(isPresented: $showWrapped) { MonthlyWrappedView() }
-        .sheet(isPresented: $showHabits) { HabitTrackerView() }
-        .sheet(isPresented: $showBudgets) { BudgetView() }
-        .sheet(isPresented: $showChallenges) { ChallengesView() }
-        .sheet(isPresented: $showTrends) { TrendChartsView() }
-        .sheet(isPresented: $showSubscriptions) { SubscriptionManagerView() }
-        .sheet(isPresented: $showSavings) { SavingsGoalsView() }
         .sheet(isPresented: $showIdentityTest) {
             CirclesView()
         }

@@ -8,7 +8,6 @@ struct MindTabView: View {
     @State private var activeChallenges: [ChallengeStore.Challenge] = []
     @State private var earnedAchievements: [AchievementEngine.Achievement] = []
     @State private var lockedTypes: [AchievementEngine.AchievementType] = []
-    @State private var latestDigest: WeeklyDigestEngine.WeeklyDigest?
     @State private var insights: [Insight] = []
     @State private var routinePlaces: [(name: String, tag: String, visits: Int, day: String?)] = []
     @StateObject private var tokenTracker = GroqTokenTracker.shared
@@ -16,7 +15,6 @@ struct MindTabView: View {
     @State private var showCoach = false
     @State private var showChallenges = false
     @State private var showAchievements = false
-    @State private var showDigest = false
     @State private var isLoading = true
 
     // MARK: - Mind pillar accent
@@ -47,8 +45,6 @@ struct MindTabView: View {
                             .sectionAppear(delay: 0.2)
                         achievementsSection
                             .sectionAppear(delay: 0.25)
-                        digestSection
-                            .sectionAppear(delay: 0.3)
                         insightsCarousel
                             .sectionAppear(delay: 0.35)
                     }
@@ -468,86 +464,7 @@ struct MindTabView: View {
         }
     }
 
-    // MARK: - 5. Weekly Digest Preview
-
-    private var digestSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.callout)
-                    .foregroundStyle(mindPurple)
-                Text("Weekly Digest")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-            }
-
-            if let digest = latestDigest {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(digest.weekKey)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    // Headline summary
-                    HStack(spacing: 16) {
-                        digestStat(label: "Avg Score", value: "\(digest.avgScore)", trend: digest.scoreTrend)
-                        digestStat(label: "Spent", value: NC.money(digest.totalSpent), trend: nil)
-                        digestStat(label: "Steps", value: "\(digest.avgSteps)", trend: nil)
-                    }
-
-                    if !digest.highlights.isEmpty {
-                        Text(digest.highlights.first ?? "")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-
-                    Button {
-                        Haptic.light()
-                        showDigest = true
-                    } label: {
-                        Text("View Full Digest")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(mindPurple)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(mindPurple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else {
-                VStack(spacing: 6) {
-                    Image(systemName: "calendar.badge.clock")
-                        .font(.title3)
-                        .foregroundStyle(.secondary.opacity(0.5))
-                    Text("Your first digest arrives Sunday evening")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            }
-        }
-        .card()
-    }
-
-    private func digestStat(label: String, value: String, trend: Int?) -> some View {
-        VStack(spacing: 2) {
-            HStack(spacing: 2) {
-                Text(value)
-                    .font(.callout.weight(.semibold))
-                if let t = trend, t != 0 {
-                    Image(systemName: t > 0 ? "arrow.up" : "arrow.down")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(t > 0 ? .green : .red)
-                }
-            }
-            Text(label)
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: - 6. Insights Carousel
+    // MARK: - 5. Insights Carousel
 
     private var insightsCarousel: some View {
         Group {
@@ -650,9 +567,6 @@ struct MindTabView: View {
         earnedAchievements = earned.sorted { $0.earnedAt > $1.earnedAt }
         let earnedTypes = Set(earned.map { $0.type })
         lockedTypes = AchievementEngine.AchievementType.allCases.filter { !earnedTypes.contains($0) }
-
-        // Weekly Digest
-        latestDigest = await WeeklyDigestEngine.shared.latestDigest()
 
         // Insights from PatternEngine
         insights = await PatternEngine.shared.activeInsights()
