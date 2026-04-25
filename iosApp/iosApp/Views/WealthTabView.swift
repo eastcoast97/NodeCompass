@@ -11,13 +11,13 @@ struct WealthTabView: View {
     @State private var showSavings = false
     @State private var showAllTransactions = false
     @State private var showAddTransaction = false
+    @State private var showTrends = false
 
     // Async-loaded data
     @State private var budgetProgress: [BudgetStore.BudgetProgress] = []
     @State private var savingsProgress: [SavingsGoalStore.SavingsProgress] = []
     @State private var activeSubscriptions: [SubscriptionManager.Subscription] = []
     @State private var subscriptionMonthly: Double = 0
-    @State private var topSpendingPlaces: [(name: String, spent: Double, tag: String?)] = []
 
     // MARK: - Computed Properties
 
@@ -87,8 +87,6 @@ struct WealthTabView: View {
                         .sectionAppear(delay: 0.15)
                     recentTransactionsSection
                         .sectionAppear(delay: 0.2)
-                    topSpendingPlacesSection
-                        .sectionAppear(delay: 0.25)
                     budgetProgressSection
                         .sectionAppear(delay: 0.3)
                     savingsGoalsPreview
@@ -114,7 +112,8 @@ struct WealthTabView: View {
             }
             .sheet(isPresented: $showBudgets) { BudgetView() }
             .sheet(isPresented: $showSubscriptions) { SubscriptionManagerView() }
-            .sheet(isPresented: $showSavings) { SavingsGoalsView() }
+            .sheet(isPresented: $showSavings) { GoalsView() }
+            .sheet(isPresented: $showTrends) { TrendChartsView() }
             .sheet(isPresented: $showAllTransactions) {
                 TransactionListView()
                     .environmentObject(store)
@@ -234,11 +233,11 @@ struct WealthTabView: View {
                 quickActionPill(icon: "repeat", label: "Subscriptions", color: Color(hex: "#EC4899")) {
                     showSubscriptions = true
                 }
-                quickActionPill(icon: "target", label: "Savings", color: NC.teal) {
+                quickActionPill(icon: "target", label: "Goals", color: NC.teal) {
                     showSavings = true
                 }
-                quickActionPill(icon: "list.bullet.rectangle", label: "All Txns", color: NC.slate) {
-                    showAllTransactions = true
+                quickActionPill(icon: "chart.xyaxis.line", label: "Trends", color: NC.slate) {
+                    showTrends = true
                 }
             }
             .padding(.horizontal, 2) // prevent shadow clipping
@@ -578,61 +577,6 @@ struct WealthTabView: View {
         }
     }
 
-    // MARK: - Top Spending Places (Place Intelligence → Wealth)
-
-    @ViewBuilder
-    private var topSpendingPlacesSection: some View {
-        if !topSpendingPlaces.isEmpty {
-            VStack(spacing: 12) {
-                HStack {
-                    Label("Where You Spend", systemImage: "mappin.and.ellipse")
-                        .font(.headline)
-                    Spacer()
-                }
-
-                VStack(spacing: 0) {
-                    ForEach(Array(topSpendingPlaces.prefix(5).enumerated()), id: \.offset) { index, place in
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(NC.teal.opacity(0.12))
-                                    .frame(width: 32, height: 32)
-                                Text("\(index + 1)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(NC.teal)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(place.name)
-                                    .font(.subheadline.weight(.medium))
-                                    .lineLimit(1)
-                                if let tag = place.tag {
-                                    Text(tag.replacingOccurrences(of: "_", with: " ").capitalized)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Text(NC.money(place.spent))
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(NC.spend)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-
-                        if index < min(topSpendingPlaces.count, 5) - 1 {
-                            Divider()
-                                .padding(.leading, NC.dividerIndent)
-                        }
-                    }
-                }
-                .card(padding: 0)
-            }
-        }
-    }
-
     // MARK: - Helpers
 
     private func emptyPlaceholder(icon: String, title: String, subtitle: String) -> some View {
@@ -679,36 +623,6 @@ struct WealthTabView: View {
         let allSubs = await subs
         activeSubscriptions = allSubs.filter(\.isActive)
         subscriptionMonthly = await monthly
-
-        // Load top spending places from Place Intelligence
-        await loadTopSpendingPlaces()
-    }
-
-    private func loadTopSpendingPlaces() async {
-        let profile = await UserProfileStore.shared.currentProfile()
-        let transactions = store.transactions
-
-        // Build spending per frequent location
-        var places: [(name: String, spent: Double, tag: String?)] = []
-        for loc in profile.frequentLocations {
-            guard let label = loc.label, !label.isEmpty, label.lowercased() != "unknown" else { continue }
-            guard loc.pillarTags?.contains("wealth") == true else { continue }
-
-            let placeName = label.lowercased()
-            let spent = transactions
-                .filter { $0.type.uppercased() != "CREDIT" }
-                .filter { txn in
-                    let merchant = txn.merchant.lowercased()
-                    return merchant.contains(placeName) || placeName.contains(merchant)
-                }
-                .reduce(0) { $0 + $1.amount }
-
-            if spent > 0 {
-                places.append((name: label, spent: spent, tag: loc.behaviorTag))
-            }
-        }
-
-        topSpendingPlaces = places.sorted { $0.spent > $1.spent }
     }
 }
 

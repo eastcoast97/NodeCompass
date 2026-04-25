@@ -9,7 +9,6 @@ struct MindTabView: View {
     @State private var earnedAchievements: [AchievementEngine.Achievement] = []
     @State private var lockedTypes: [AchievementEngine.AchievementType] = []
     @State private var insights: [Insight] = []
-    @State private var routinePlaces: [(name: String, tag: String, visits: Int, day: String?)] = []
     @StateObject private var tokenTracker = GroqTokenTracker.shared
 
     @State private var showCoach = false
@@ -41,8 +40,6 @@ struct MindTabView: View {
                             .sectionAppear(delay: 0.1)
                         challengesSection
                             .sectionAppear(delay: 0.15)
-                        routinePlacesSection
-                            .sectionAppear(delay: 0.2)
                         achievementsSection
                             .sectionAppear(delay: 0.25)
                         insightsCarousel
@@ -338,55 +335,6 @@ struct MindTabView: View {
         .background(NC.bgElevated, in: RoundedRectangle(cornerRadius: 10))
     }
 
-    // MARK: - Routine Places (Place Intelligence → Mind)
-
-    @ViewBuilder
-    private var routinePlacesSection: some View {
-        if !routinePlaces.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.callout)
-                        .foregroundStyle(mindPurple)
-                    Text("Your Routines")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                }
-
-                ForEach(Array(routinePlaces.prefix(4).enumerated()), id: \.offset) { _, place in
-                    HStack(spacing: 12) {
-                        Image(systemName: "arrow.clockwise.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(mindPurple.opacity(0.7))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(place.name)
-                                .font(.subheadline.weight(.medium))
-                                .lineLimit(1)
-                            HStack(spacing: 4) {
-                                Text(place.tag.replacingOccurrences(of: "_", with: " ").capitalized)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                if let day = place.day {
-                                    Text("• \(day)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
-                            }
-                        }
-
-                        Spacer()
-
-                        Text("\(place.visits)x")
-                            .font(.caption.bold())
-                            .foregroundStyle(mindPurple)
-                    }
-                }
-            }
-            .card()
-        }
-    }
-
     // MARK: - 4. Recent Achievements
 
     private var achievementsSection: some View {
@@ -571,30 +519,7 @@ struct MindTabView: View {
         // Insights from PatternEngine
         insights = await PatternEngine.shared.activeInsights()
 
-        // Routine places from Place Intelligence
-        await loadRoutinePlaces()
-
         isLoading = false
-    }
-
-    private func loadRoutinePlaces() async {
-        let profile = await UserProfileStore.shared.currentProfile()
-        let dayNames = ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-        routinePlaces = profile.frequentLocations
-            .filter { $0.pillarTags?.contains("mind") == true && $0.visitCount >= 3 }
-            .filter { $0.label != nil && !($0.label?.isEmpty ?? true) }
-            .sorted { $0.visitCount > $1.visitCount }
-            .prefix(6)
-            .map { loc in
-                let dayStr: String? = loc.typicalVisitDay.flatMap { $0 > 0 && $0 < 8 ? dayNames[$0] : nil }
-                return (
-                    name: loc.label ?? "",
-                    tag: loc.behaviorTag ?? "frequent_visit",
-                    visits: loc.visitCount,
-                    day: dayStr
-                )
-            }
     }
 }
 

@@ -23,7 +23,6 @@
 		13326D7942B326CB451012A9 /* ReactionPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B868E72036AFDE7AD024F3 /* ReactionPicker.swift */; };
 		135660C10BB7B48F210F282D /* FoodAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E0C2548B93274577920891 /* FoodAnalyzer.swift */; };
 		170FB75666813C478D84944B /* ChallengeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635781E2BE616679522C62EC /* ChallengeCatalog.swift */; };
-		18F2C9BFC1AD9B9177080AE9 /* SavingsGoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B213151CFB637FF24CAB8518 /* SavingsGoalsView.swift */; };
 		1A4B62321B8BD744C2B936F8 /* PlaceIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC1D3E169325D016924815C /* PlaceIntelligence.swift */; };
 		1BF95D6B806A1850610E6CB5 /* LocationCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C17B88CBA08421F33F6735 /* LocationCollector.swift */; };
 		1C81D6F669B7BB6D2FFCCEB3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = B6E18E1D8AEE3BF1FDA1E5E9 /* GoogleSignIn */; };
@@ -232,7 +231,6 @@
 		AEFDEC9CB7EF660EA3D90091 /* GeminiSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiSetupView.swift; sourceTree = "<group>"; };
 		AF34756D6C79F4A69872FD0D /* LifeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeEvent.swift; sourceTree = "<group>"; };
 		B1A0E071A0A9F448C300FD10 /* LocalAuthentication.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LocalAuthentication.framework; path = System/Library/Frameworks/LocalAuthentication.framework; sourceTree = SDKROOT; };
-		B213151CFB637FF24CAB8518 /* SavingsGoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavingsGoalsView.swift; sourceTree = "<group>"; };
 		B414DD003D19E2766B5A28EC /* Speech.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Speech.framework; path = System/Library/Frameworks/Speech.framework; sourceTree = SDKROOT; };
 		BEC7FD643ACF9CF69EAB5039 /* VoiceFoodParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceFoodParser.swift; sourceTree = "<group>"; };
 		BF5C8ACF87E83EA460F47ABD /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
@@ -369,7 +367,6 @@
 				8A641F6CE2B0D06658BC63B9 /* QuickFoodLogSheet.swift */,
 				A5590137BA28604CA4661F8A /* ReactionInbox.swift */,
 				E3B868E72036AFDE7AD024F3 /* ReactionPicker.swift */,
-				B213151CFB637FF24CAB8518 /* SavingsGoalsView.swift */,
 				92DB86A1324A5D8F0E6E7BBF /* SettingsView.swift */,
 				2ACC958D8A710936FBF3E507 /* SubscriptionManagerView.swift */,
 				2A8B881D8B36DC9C9655B895 /* TransactionDetailView.swift */,
@@ -673,7 +670,6 @@
 				13326D7942B326CB451012A9 /* ReactionPicker.swift in Sources */,
 				E5ADA427543E73DA9B03F072 /* ReactionsSync.swift in Sources */,
 				A20B58593C7FB291B85A3BED /* SavingsGoalStore.swift in Sources */,
-				18F2C9BFC1AD9B9177080AE9 /* SavingsGoalsView.swift in Sources */,
 				9269EDD21DFD43A131AB00FE /* SettingsView.swift in Sources */,
 				552C8B4233DCADB9F4106B63 /* SmartCancellationService.swift in Sources */,
 				EBA10633F15FEAE8A33D25C6 /* SmartCategorizer.swift in Sources */,

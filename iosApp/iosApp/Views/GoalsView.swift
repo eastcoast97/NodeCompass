@@ -1,43 +1,109 @@
 import SwiftUI
 
-// MARK: - Goals Tab / Sheet
+// MARK: - Goals View — unified entry for recurring goals and named savings targets
 
 struct GoalsView: View {
     @StateObject private var vm = GoalsViewModel()
-    @State private var showAddGoal = false
+    @State private var addSheet: AddSheetKind?
+
+    enum AddSheetKind: Identifiable {
+        case picker
+        case recurring
+        case savingsTarget
+        var id: Int {
+            switch self {
+            case .picker: return 0
+            case .recurring: return 1
+            case .savingsTarget: return 2
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                if vm.progress.isEmpty {
+                // MARK: Savings targets (named, deadline-driven)
+                if !vm.activeSavings.isEmpty {
+                    Section {
+                        ForEach(vm.activeSavings) { progress in
+                            SavingsTargetCard(
+                                progress: progress,
+                                onComplete: { Task { await vm.completeSavings(id: progress.goal.id) } },
+                                onDelete:   { Task { await vm.deleteSavings(id: progress.goal.id) } }
+                            )
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    Task { await vm.deleteSavings(id: progress.goal.id) }
+                                } label: { Label("Delete", systemImage: "trash") }
+                                Button {
+                                    Task { await vm.completeSavings(id: progress.goal.id) }
+                                } label: { Label("Complete", systemImage: "checkmark.circle") }
+                                .tint(.green)
+                            }
+                        }
+                    } header: {
+                        sectionHeader("Savings Targets", systemImage: "banknote.fill")
+                    }
+                }
+
+                // MARK: Recurring goals (auto-tracked from data)
+                if !vm.recurring.isEmpty {
+                    Section {
+                        ForEach(vm.recurring) { item in
+                            RecurringGoalCard(item: item, onRemove: {
+                                Task { await vm.removeRecurring(goalId: item.goal.id) }
+                            })
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await vm.removeRecurring(goalId: item.goal.id) }
+                                } label: { Label("Delete", systemImage: "trash") }
+                            }
+                        }
+                    } header: {
+                        sectionHeader("Recurring Goals", systemImage: "target")
+                    }
+                }
+
+                // MARK: Completed savings (collapsed footer)
+                if !vm.completedSavings.isEmpty {
+                    Section {
+                        ForEach(vm.completedSavings) { progress in
+                            CompletedSavingsRow(progress: progress, onDelete: {
+                                Task { await vm.deleteSavings(id: progress.goal.id) }
+                            })
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await vm.deleteSavings(id: progress.goal.id) }
+                                } label: { Label("Delete", systemImage: "trash") }
+                            }
+                        }
+                    } header: {
+                        sectionHeader("Completed", systemImage: "checkmark.seal.fill")
+                    }
+                }
+
+                // Empty state
+                if vm.isEmpty {
                     emptyState
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
-                } else {
-                    ForEach(vm.progress) { item in
-                        GoalCard(item: item, onRemove: {
-                            Task { await vm.remove(goalId: item.goal.id) }
-                        })
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 4, leading: NC.hPad, bottom: 4, trailing: NC.hPad))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                Task { await vm.remove(goalId: item.goal.id) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                    }
                 }
 
-                // Add goal button
-                Button { showAddGoal = true } label: {
+                // Add button
+                Button { addSheet = .picker } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "plus.circle.fill")
-                        Text("Add a Goal")
-                            .fontWeight(.medium)
+                        Text("Add a Goal").fontWeight(.medium)
                     }
                     .font(.subheadline)
                     .foregroundStyle(NC.teal)
@@ -54,18 +120,51 @@ struct GoalsView: View {
             .scrollContentBackground(.hidden)
             .navigationTitle("Goals")
             .navigationBarTitleDisplayMode(.large)
-            .sheet(isPresented: $showAddGoal) {
-                AddGoalSheet(onAdd: { type, value in
-                    Task {
-                        await vm.add(type: type, target: value)
-                        showAddGoal = false
-                    }
-                })
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
             .task { await vm.load() }
+            .sheet(item: $addSheet) { kind in
+                switch kind {
+                case .picker:
+                    AddGoalPickerSheet(
+                        onPickRecurring: { addSheet = .recurring },
+                        onPickSavings:   { addSheet = .savingsTarget }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                case .recurring:
+                    AddRecurringGoalSheet { type, value in
+                        Task {
+                            await vm.addRecurring(type: type, target: value)
+                            addSheet = nil
+                        }
+                    }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                case .savingsTarget:
+                    AddSavingsTargetSheet { name, target, deadline, icon in
+                        Task {
+                            await vm.addSavings(name: name, target: target, deadline: deadline, icon: icon)
+                            addSheet = nil
+                        }
+                    }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                }
+            }
         }
+    }
+
+    private func sectionHeader(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.caption)
+                .foregroundStyle(NC.teal)
+            Text(title)
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.top, 4)
     }
 
     private var emptyState: some View {
@@ -75,7 +174,7 @@ struct GoalsView: View {
                 .foregroundStyle(NC.teal.opacity(0.4))
             Text("No goals yet")
                 .font(.headline)
-            Text("Set goals and NodeCompass will track them automatically using your spending, health, and food data.")
+            Text("Set savings targets or recurring habits — NodeCompass tracks progress automatically from your data.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -86,16 +185,15 @@ struct GoalsView: View {
     }
 }
 
-// MARK: - Goal Card
+// MARK: - Recurring Goal Card
 
-private struct GoalCard: View {
+private struct RecurringGoalCard: View {
     let item: GoalProgress
     let onRemove: () -> Void
     @State private var showRemove = false
 
     var body: some View {
         VStack(spacing: 12) {
-            // Header
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
@@ -116,7 +214,6 @@ private struct GoalCard: View {
 
                 Spacer()
 
-                // Status
                 HStack(spacing: 4) {
                     Circle()
                         .fill(item.isOnTrack ? .green : .orange)
@@ -126,7 +223,6 @@ private struct GoalCard: View {
                         .foregroundStyle(item.isOnTrack ? .green : .orange)
                 }
 
-                // Delete button
                 Button { showRemove = true } label: {
                     Image(systemName: "trash")
                         .font(.caption2)
@@ -136,14 +232,12 @@ private struct GoalCard: View {
                 }
             }
 
-            // Progress bar
             VStack(spacing: 6) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color(.systemGray5))
                             .frame(height: 8)
-
                         RoundedRectangle(cornerRadius: 4)
                             .fill(progressColor)
                             .frame(width: min(geo.size.width, geo.size.width * item.progress), height: 8)
@@ -162,7 +256,6 @@ private struct GoalCard: View {
                 }
             }
 
-            // Streak (if applicable)
             if item.streakDays > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "flame.fill")
@@ -192,8 +285,8 @@ private struct GoalCard: View {
         switch item.goal.type.pillar {
         case "wealth": return NC.teal
         case "health": return .pink
-        case "food": return NC.food
-        default: return .blue
+        case "food":   return NC.food
+        default:       return .blue
         }
     }
 
@@ -206,36 +299,266 @@ private struct GoalCard: View {
 
     private var formattedCurrent: String {
         switch item.goal.type {
-        case .spending, .savings:
-            return NC.money(item.currentValue)
-        case .sleep:
-            return String(format: "%.1f hrs", item.currentValue)
-        case .steps:
-            return "\(Int(item.currentValue).formatted()) steps"
-        case .calories:
-            return "\(Int(item.currentValue)) kcal"
-        default:
-            return "\(Int(item.currentValue))x"
+        case .spending, .savings: return NC.money(item.currentValue)
+        case .sleep:    return String(format: "%.1f hrs", item.currentValue)
+        case .steps:    return "\(Int(item.currentValue).formatted()) steps"
+        case .calories: return "\(Int(item.currentValue)) kcal"
+        default:        return "\(Int(item.currentValue))x"
         }
     }
 }
 
-// MARK: - Add Goal Sheet
+// MARK: - Savings Target Card (named, deadline-driven)
 
-private struct AddGoalSheet: View {
+private struct SavingsTargetCard: View {
+    let progress: SavingsGoalStore.SavingsProgress
+    let onComplete: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(NC.teal.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: progress.goal.icon)
+                        .font(.system(size: 18))
+                        .foregroundStyle(NC.teal)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(progress.goal.name)
+                        .font(.headline)
+                    Text("\(NC.money(progress.currentSaved)) of \(NC.money(progress.goal.targetAmount))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                progressRing(percentage: progress.percentage)
+            }
+
+            HStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    Image(systemName: progress.isOnTrack ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .font(.caption)
+                    Text(progress.isOnTrack ? "On Track" : "Behind")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(progress.isOnTrack ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                .foregroundStyle(progress.isOnTrack ? .green : .orange)
+                .clipShape(Capsule())
+
+                if progress.monthlyRequired > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.circle")
+                            .font(.caption)
+                        Text("\(NC.money(progress.monthlyRequired))/mo")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(NC.teal.opacity(0.1))
+                    .foregroundStyle(NC.teal)
+                    .clipShape(Capsule())
+                }
+
+                Spacer()
+
+                if let deadline = progress.goal.deadline {
+                    let months = Calendar.current.dateComponents([.month], from: Date(), to: deadline).month ?? 0
+                    Text(months > 0 ? "\(months) mo left" : "Due now")
+                        .font(.caption)
+                        .foregroundStyle(months > 0 ? Color.secondary : Color.red)
+                }
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(NC.teal.gradient)
+                        .frame(width: max(0, geo.size.width * min(1.0, progress.percentage)), height: 6)
+                }
+            }
+            .frame(height: 6)
+
+            if progress.dailySuggested > 0 && !progress.goal.isCompleted {
+                HStack(spacing: 4) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                    Text("Save \(NC.money(progress.dailySuggested))/day to stay on track")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            }
+        }
+        .padding(NC.hPad)
+        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        .contextMenu {
+            Button { onComplete() } label: {
+                Label("Mark Complete", systemImage: "checkmark.circle")
+            }
+            Button(role: .destructive) { onDelete() } label: {
+                Label("Delete Goal", systemImage: "trash")
+            }
+        }
+    }
+
+    private func progressRing(percentage: Double) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Color(.systemGray5), lineWidth: 4)
+                .frame(width: 48, height: 48)
+            Circle()
+                .trim(from: 0, to: min(1.0, percentage))
+                .stroke(NC.teal, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .frame(width: 48, height: 48)
+                .rotationEffect(.degrees(-90))
+            Text("\(Int(percentage * 100))%")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(NC.teal)
+        }
+    }
+}
+
+// MARK: - Completed Savings Row
+
+private struct CompletedSavingsRow: View {
+    let progress: SavingsGoalStore.SavingsProgress
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.15))
+                    .frame(width: 38, height: 38)
+                Image(systemName: progress.goal.icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.green)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(progress.goal.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .strikethrough(color: .secondary.opacity(0.5))
+                Text(NC.money(progress.goal.targetAmount))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "checkmark.seal.fill")
+                .font(.title3)
+                .foregroundStyle(.green)
+        }
+        .padding(12)
+        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        .opacity(0.85)
+        .contextMenu {
+            Button(role: .destructive) { onDelete() } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+}
+
+// MARK: - Add Goal Picker
+
+private struct AddGoalPickerSheet: View {
+    let onPickRecurring: () -> Void
+    let onPickSavings: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                pickerCard(
+                    icon: "banknote.fill",
+                    title: "Savings Target",
+                    subtitle: "Save toward a named goal with a deadline",
+                    color: NC.teal,
+                    action: onPickSavings
+                )
+                pickerCard(
+                    icon: "target",
+                    title: "Recurring Goal",
+                    subtitle: "Auto-tracked from spending, health, or food data",
+                    color: .blue,
+                    action: onPickRecurring
+                )
+                Spacer()
+            }
+            .padding(NC.hPad)
+            .navigationTitle("Add a Goal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func pickerCard(icon: String, title: String, subtitle: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: NC.iconRadius, style: .continuous)
+                        .fill(color.opacity(0.12))
+                        .frame(width: NC.iconSize, height: NC.iconSize)
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                        .foregroundStyle(color)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(NC.hPad)
+            .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Add Recurring Goal
+
+private struct AddRecurringGoalSheet: View {
     let onAdd: (GoalType, Double) -> Void
     @State private var selectedType: GoalType?
     @State private var targetValue: Double = 0
     @State private var customValueText: String = ""
     @State private var useCustom: Bool = false
     @FocusState private var customFieldFocused: Bool
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     if let type = selectedType {
-                        // Step 2: Set target
                         VStack(spacing: 20) {
                             ZStack {
                                 Circle()
@@ -246,10 +569,8 @@ private struct AddGoalSheet: View {
                                     .foregroundStyle(pillarColor(type))
                             }
 
-                            Text(type.title)
-                                .font(.title3.bold())
+                            Text(type.title).font(.title3.bold())
 
-                            // Quick presets
                             VStack(spacing: 10) {
                                 Text("Quick select")
                                     .font(.caption)
@@ -278,7 +599,6 @@ private struct AddGoalSheet: View {
                                 }
                             }
 
-                            // Custom value input
                             VStack(spacing: 8) {
                                 Text("Or set your own")
                                     .font(.caption)
@@ -304,15 +624,14 @@ private struct AddGoalSheet: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, 14).padding(.vertical, 10)
                                 .background(
                                     RoundedRectangle(cornerRadius: NC.iconRadius)
-                                        .stroke(useCustom ? pillarColor(type) : Color(.systemGray4), lineWidth: useCustom ? 2 : 1)
+                                        .stroke(useCustom ? pillarColor(type) : Color(.systemGray4),
+                                                lineWidth: useCustom ? 2 : 1)
                                 )
                             }
 
-                            // Confirm
                             Button {
                                 let finalValue = targetValue > 0 ? targetValue : type.defaultValue
                                 onAdd(type, finalValue)
@@ -328,7 +647,6 @@ private struct AddGoalSheet: View {
                         }
                         .padding(.top, 20)
                     } else {
-                        // Step 1: Choose type
                         ForEach(GoalType.allCases, id: \.self) { type in
                             Button {
                                 selectedType = type
@@ -343,7 +661,6 @@ private struct AddGoalSheet: View {
                                             .font(.subheadline)
                                             .foregroundStyle(pillarColor(type))
                                     }
-
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(type.title)
                                             .font(.subheadline.bold())
@@ -352,9 +669,7 @@ private struct AddGoalSheet: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
-
                                     Spacer()
-
                                     Image(systemName: "chevron.right")
                                         .font(.caption)
                                         .foregroundStyle(.tertiary)
@@ -362,7 +677,6 @@ private struct AddGoalSheet: View {
                                 .padding(.horizontal, NC.hPad)
                                 .padding(.vertical, NC.vPad)
                             }
-
                             if type != GoalType.allCases.last {
                                 Divider().padding(.leading, NC.dividerIndent)
                             }
@@ -372,12 +686,12 @@ private struct AddGoalSheet: View {
                 }
                 .padding(.horizontal, NC.hPad)
             }
-            .navigationTitle(selectedType == nil ? "Add Goal" : "Set Target")
+            .navigationTitle(selectedType == nil ? "Recurring Goal" : "Set Target")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if selectedType != nil {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Back") { selectedType = nil }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(selectedType == nil ? "Cancel" : "Back") {
+                        if selectedType == nil { dismiss() } else { selectedType = nil }
                     }
                 }
             }
@@ -388,8 +702,8 @@ private struct AddGoalSheet: View {
         switch type.pillar {
         case "wealth": return NC.teal
         case "health": return .pink
-        case "food": return NC.food
-        default: return .blue
+        case "food":   return NC.food
+        default:       return .blue
         }
     }
 
@@ -398,7 +712,81 @@ private struct AddGoalSheet: View {
         case .spending, .savings: return NC.money(value)
         case .sleep: return String(format: "%.1f", value)
         case .steps: return "\(Int(value).formatted())"
-        default: return "\(Int(value))"
+        default:     return "\(Int(value))"
+        }
+    }
+}
+
+// MARK: - Add Savings Target
+
+private struct AddSavingsTargetSheet: View {
+    let onAdd: (_ name: String, _ target: Double, _ deadline: Date?, _ icon: String) -> Void
+    @State private var name = ""
+    @State private var targetText = ""
+    @State private var deadline: Date = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
+    @State private var hasDeadline = true
+    @State private var icon = "star.fill"
+    @Environment(\.dismiss) private var dismiss
+
+    static let iconOptions = [
+        "star.fill", "airplane", "house.fill", "car.fill", "graduationcap.fill",
+        "gift.fill", "heart.fill", "laptopcomputer", "iphone", "bicycle",
+        "camera.fill", "music.note", "leaf.fill", "cross.case.fill", "banknote.fill",
+        "trophy.fill", "flag.fill", "sun.max.fill", "pawprint.fill", "gamecontroller.fill"
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Goal Details") {
+                    TextField("Goal name (e.g., Vacation to Bali)", text: $name)
+
+                    HStack {
+                        Text(NC.currencySymbol).foregroundStyle(.secondary)
+                        TextField("Target amount", text: $targetText)
+                            .keyboardType(.decimalPad)
+                    }
+
+                    Toggle("Set deadline", isOn: $hasDeadline)
+                    if hasDeadline {
+                        DatePicker("Deadline", selection: $deadline, in: Date()..., displayedComponents: .date)
+                    }
+                }
+
+                Section("Icon") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 16) {
+                        ForEach(Self.iconOptions, id: \.self) { option in
+                            Button { icon = option } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(icon == option ? NC.teal.opacity(0.2) : Color(.systemGray6))
+                                        .frame(width: 44, height: 44)
+                                    Image(systemName: option)
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(icon == option ? NC.teal : .secondary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            .navigationTitle("New Savings Target")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard let target = Double(targetText), !name.isEmpty, target > 0 else { return }
+                        onAdd(name, target, hasDeadline ? deadline : nil, icon)
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundStyle(NC.teal)
+                    .disabled(name.isEmpty || Double(targetText) == nil)
+                }
+            }
         }
     }
 }
@@ -407,19 +795,46 @@ private struct AddGoalSheet: View {
 
 @MainActor
 class GoalsViewModel: ObservableObject {
-    @Published var progress: [GoalProgress] = []
+    @Published var recurring: [GoalProgress] = []
+    @Published var savingsAll: [SavingsGoalStore.SavingsProgress] = []
+
+    var activeSavings:    [SavingsGoalStore.SavingsProgress] { savingsAll.filter { !$0.goal.isCompleted } }
+    var completedSavings: [SavingsGoalStore.SavingsProgress] { savingsAll.filter {  $0.goal.isCompleted } }
+
+    var isEmpty: Bool { recurring.isEmpty && savingsAll.isEmpty }
 
     func load() async {
-        progress = await GoalStore.shared.progressForAll()
+        async let r = GoalStore.shared.progressForAll()
+        async let s = SavingsGoalStore.shared.progressForAll()
+        let (rec, sav) = await (r, s)
+        recurring = rec
+        savingsAll = sav
     }
 
-    func add(type: GoalType, target: Double) async {
+    // Recurring goals
+    func addRecurring(type: GoalType, target: Double) async {
         await GoalStore.shared.addGoal(type: type, target: target)
         await load()
     }
 
-    func remove(goalId: String) async {
+    func removeRecurring(goalId: String) async {
         await GoalStore.shared.removeGoal(goalId: goalId)
+        await load()
+    }
+
+    // Savings targets
+    func addSavings(name: String, target: Double, deadline: Date?, icon: String) async {
+        await SavingsGoalStore.shared.addGoal(name: name, target: target, deadline: deadline, icon: icon)
+        await load()
+    }
+
+    func deleteSavings(id: String) async {
+        await SavingsGoalStore.shared.deleteGoal(id: id)
+        await load()
+    }
+
+    func completeSavings(id: String) async {
+        await SavingsGoalStore.shared.markComplete(id: id)
         await load()
     }
 }

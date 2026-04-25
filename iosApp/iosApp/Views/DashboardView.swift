@@ -6,17 +6,13 @@ import Charts
 enum DashboardPage: Int, CaseIterable {
     case wealth = 0
     case health = 1
-    case food = 2
-    case insights = 3
-    case orders = 4
+    case insights = 2
 
     var title: String {
         switch self {
         case .wealth: return "Wealth"
         case .health: return "Health"
-        case .food: return "Food"
         case .insights: return "Insights"
-        case .orders: return "Orders"
         }
     }
 
@@ -24,9 +20,7 @@ enum DashboardPage: Int, CaseIterable {
         switch self {
         case .wealth: return NC.currencyIcon
         case .health: return "heart.fill"
-        case .food: return "fork.knife"
         case .insights: return "lightbulb.fill"
-        case .orders: return "bag.fill"
         }
     }
 
@@ -34,9 +28,7 @@ enum DashboardPage: Int, CaseIterable {
         switch self {
         case .wealth: return NC.teal
         case .health: return .pink
-        case .food: return NC.food
         case .insights: return .orange
-        case .orders: return .purple
         }
     }
 }
@@ -78,7 +70,6 @@ struct DashboardView: View {
     @State private var showSubscriptions = false
     @State private var showChallenges = false
     @State private var showBudget = false
-    @State private var showSavingsGoals = false
     @ObservedObject private var profileStore = PersonalInfoStore.shared
 
     var body: some View {
@@ -331,10 +322,6 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showBudget) {
             BudgetView()
-                .onDisappear { Task { await refreshAdaptive() } }
-        }
-        .sheet(isPresented: $showSavingsGoals) {
-            SavingsGoalsView()
                 .onDisappear { Task { await refreshAdaptive() } }
         }
     }
@@ -642,7 +629,7 @@ struct DashboardView: View {
     private var savingsSnapshotCard: some View {
         Button {
             Haptic.light()
-            showSavingsGoals = true
+            showGoals = true
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -897,19 +884,8 @@ struct DashboardView: View {
                 )
                 .tag(DashboardPage.health)
 
-                FoodHeroCard(
-                    todayMeals: vm.todayMealCount,
-                    todayCalories: vm.todayCalories,
-                    cookingStreak: vm.homeCookingStreak,
-                    onLogTap: { showFoodLog = true }
-                )
-                .tag(DashboardPage.food)
-
                 InsightsHeroCard(count: vm.insights.count, topInsight: vm.insights.first)
                 .tag(DashboardPage.insights)
-
-                OrdersHeroCard(count: vm.emailReceiptsCount, recentMerchant: vm.recentOrders.first?.merchant)
-                .tag(DashboardPage.orders)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 180)
@@ -930,12 +906,8 @@ struct DashboardView: View {
             wealthFeed
         case .health:
             healthFeed
-        case .food:
-            foodFeed
         case .insights:
             insightsFeed
-        case .orders:
-            ordersFeed
         }
     }
 
@@ -947,9 +919,6 @@ struct DashboardView: View {
                 EmptyStateView()
             } else {
                 CategoryChartCard(store: store, currencySymbol: vm.primaryCurrencySymbol)
-                if !vm.ghostSubscriptions.isEmpty {
-                    GhostSubscriptionsCard(subscriptions: vm.ghostSubscriptions, vm: vm)
-                }
                 if !vm.recentTransactions.isEmpty {
                     RecentActivityCard(title: "Recent Transactions", transactions: vm.recentTransactions)
                 }
@@ -1016,190 +985,9 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Food Feed
-
-    private var foodFeed: some View {
-        VStack(spacing: 14) {
-            // Log food button
-            Button { showFoodLog = true } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
-                    Text("Log a Meal")
-                        .font(.headline)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .foregroundStyle(NC.food)
-                .padding(14)
-                .background(NC.food.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.cardRadius))
-            }
-            .buttonStyle(.plain)
-
-            // Pending food orders (detected but items not logged)
-            if !vm.pendingFoodLogs.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "fork.knife")
-                            .foregroundStyle(.orange)
-                        Text("What did you eat?")
-                            .font(.headline)
-                    }
-                    ForEach(vm.pendingFoodLogs, id: \.id) { entry in
-                        Button {
-                            pendingEntryToComplete = entry
-                        } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.orange.opacity(0.12))
-                                        .frame(width: 40, height: 40)
-                                    Image(systemName: "bag.fill")
-                                        .font(.callout)
-                                        .foregroundStyle(.orange)
-                                }
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(entry.locationName ?? "Food Order")
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(.primary)
-                                    HStack(spacing: 6) {
-                                        if let spent = entry.totalSpent {
-                                            Text("$\(String(format: "%.2f", spent))")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Text(mealTypeLabel(for: entry))
-                                            .font(.caption.bold())
-                                            .foregroundStyle(mealTypeColor(for: entry))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(mealTypeColor(for: entry).opacity(0.1), in: Capsule())
-                                    }
-                                }
-                                Spacer()
-                                Text("Log")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.orange)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.orange.opacity(0.12), in: Capsule())
-                            }
-                            .padding(10)
-                            .background(Color.orange.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: NC.iconRadius))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .card()
-            }
-
-            if vm.todayFoodEntries.filter({ !$0.items.isEmpty }).isEmpty && vm.foodInsights.isEmpty && vm.pendingFoodLogs.isEmpty {
-                FeedEmptyState(
-                    icon: "fork.knife",
-                    color: NC.food,
-                    title: "No Food Logged Today",
-                    subtitle: "Tap above to log what you ate, or food will be auto-detected from orders and restaurant visits."
-                )
-            } else {
-                // Daily macro summary
-                if vm.todayMacros != .zero {
-                    DailyMacroCard(calories: vm.todayCalories, macros: vm.todayMacros)
-                }
-
-                // Today's meals (only show entries with actual items, not pending)
-                let completedMeals = vm.todayFoodEntries.filter { !$0.items.isEmpty }
-                if !completedMeals.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Today's Meals")
-                            .font(.headline)
-                        ForEach(completedMeals, id: \.id) { entry in
-                            FoodEntryRow(entry: entry)
-                        }
-                    }
-                    .card()
-                }
-
-                // Staple foods
-                if !vm.stapleFoods.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(.orange)
-                            Text("Your Staples")
-                                .font(.headline)
-                        }
-                        ForEach(vm.stapleFoods.prefix(5), id: \.name) { staple in
-                            HStack(spacing: 10) {
-                                Text(staple.name)
-                                    .font(.subheadline)
-                                Spacer()
-                                Text("\(staple.occurrences)x")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                if let cal = staple.caloriesEstimate {
-                                    Text("\(cal) cal")
-                                        .font(.caption)
-                                        .foregroundStyle(.orange)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                    .card()
-                }
-
-                // Food insights
-                if !vm.foodInsights.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Food Insights")
-                            .font(.headline)
-                        ForEach(vm.foodInsights.prefix(5)) { insight in
-                            CompactInsightRow(insight: insight)
-                        }
-                    }
-                    .card()
-                }
-            }
-        }
-    }
-
-    // MARK: - Orders Feed
-
-    private var ordersFeed: some View {
-        VStack(spacing: 14) {
-            if vm.recentOrders.isEmpty {
-                FeedEmptyState(
-                    icon: "bag.fill",
-                    color: .purple,
-                    title: "No Orders Yet",
-                    subtitle: "Connect your Gmail to automatically sync receipts from Amazon, Swiggy, Flipkart, and more."
-                )
-            } else {
-                RecentActivityCard(title: "Recent Orders", transactions: Array(vm.recentOrders))
-            }
-        }
-    }
-
     private func formatSteps(_ steps: Int) -> String {
         if steps >= 1000 { return String(format: "%.1fk", Double(steps) / 1000.0) }
         return steps > 0 ? "\(steps)" : "--"
-    }
-
-    private func mealTypeLabel(for entry: FoodStore.FoodLogEntry) -> String {
-        entry.mealType.capitalized
-    }
-
-    private func mealTypeColor(for entry: FoodStore.FoodLogEntry) -> Color {
-        switch entry.mealType {
-        case "breakfast": return .orange
-        case "lunch": return .yellow
-        case "snack": return .mint
-        case "dinner": return .indigo
-        default: return .secondary
-        }
     }
 
     // MARK: - Adaptive State Refresh
@@ -1555,131 +1343,6 @@ private struct InsightsHeroCard: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: NC.heroRadius, style: .continuous))
         .shadow(color: Color.orange.opacity(0.2), radius: 12, y: 6)
-    }
-}
-
-private struct OrdersHeroCard: View {
-    let count: Int
-    let recentMerchant: String?
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text("ORDERS")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white.opacity(0.6))
-                .tracking(1.5)
-
-            if count > 0 {
-                Text("\(count)")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text("receipts synced")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.6))
-
-                if let merchant = recentMerchant {
-                    Text("Latest: \(merchant)")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-            } else {
-                Image(systemName: "bag.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.white)
-                Text("No orders yet")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Text("Connect Gmail to sync receipts")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(colors: [Color(red: 0.3, green: 0.15, blue: 0.5), Color(red: 0.2, green: 0.08, blue: 0.35)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: NC.heroRadius, style: .continuous))
-        .shadow(color: Color.purple.opacity(0.2), radius: 12, y: 6)
-    }
-}
-
-// MARK: - Food Hero Card
-
-private struct FoodHeroCard: View {
-    let todayMeals: Int
-    let todayCalories: Int
-    let cookingStreak: Int
-    let onLogTap: () -> Void
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text("FOOD")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white.opacity(0.6))
-                .tracking(1.5)
-
-            if todayMeals > 0 {
-                HStack(spacing: 24) {
-                    VStack(spacing: 2) {
-                        Image(systemName: "fork.knife")
-                            .font(.title3)
-                        Text("\(todayMeals)")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                        Text("meals")
-                            .font(.caption2)
-                            .opacity(0.7)
-                    }
-                    if todayCalories > 0 {
-                        VStack(spacing: 2) {
-                            Image(systemName: "flame.fill")
-                                .font(.title3)
-                            Text("\(todayCalories)")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                            Text("calories")
-                                .font(.caption2)
-                                .opacity(0.7)
-                        }
-                    }
-                    if cookingStreak > 0 {
-                        VStack(spacing: 2) {
-                            Image(systemName: "house.fill")
-                                .font(.title3)
-                            Text("\(cookingStreak)")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                            Text("day streak")
-                                .font(.caption2)
-                                .opacity(0.7)
-                        }
-                    }
-                }
-                .foregroundStyle(.white)
-            } else {
-                Button(action: onLogTap) {
-                    VStack(spacing: 6) {
-                        Image(systemName: "fork.knife")
-                            .font(.system(size: 32))
-                        Text("Log a Meal")
-                            .font(.headline)
-                        Text("Tap to get started")
-                            .font(.caption)
-                            .opacity(0.6)
-                    }
-                    .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(colors: [Color(red: 0.6, green: 0.12, blue: 0.2), Color(red: 0.4, green: 0.08, blue: 0.15)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: NC.heroRadius, style: .continuous))
-        .shadow(color: NC.food.opacity(0.2), radius: 12, y: 6)
     }
 }
 
@@ -2068,98 +1731,6 @@ private struct CategoryChartCard: View {
 }
 
 // MARK: - Ghost Subscriptions
-
-private struct GhostSubscriptionsCard: View {
-    let subscriptions: [GhostSubscriptionItem]
-    @ObservedObject var vm: DashboardViewModel
-
-    @State private var selectedForAction: GhostSubscriptionItem?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "ghost.fill").foregroundStyle(NC.warning)
-                Text("Ghost Subscriptions").font(.headline)
-                Spacer()
-                Text("\(subscriptions.count)")
-                    .font(.caption).fontWeight(.bold)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(NC.warning.opacity(0.15))
-                    .foregroundStyle(NC.warning)
-                    .clipShape(Capsule())
-            }
-            ForEach(subscriptions) { sub in
-                Button {
-                    Haptic.light()
-                    selectedForAction = sub
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(sub.merchant).font(.subheadline).fontWeight(.medium)
-                                .foregroundStyle(NC.textPrimary)
-                            Text("\(sub.occurrences) recurring charges")
-                                .font(.caption).foregroundStyle(NC.textSecondary)
-                        }
-                        Spacer()
-                        Text(sub.formattedAmount)
-                            .font(.subheadline).fontWeight(.bold).foregroundStyle(NC.spend)
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(NC.textTertiary)
-                            .frame(width: 22, height: 22)
-                            .contentShape(Rectangle())
-                    }
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button {
-                        SmartCancellationService.cancel(merchant: sub.merchant)
-                    } label: {
-                        Label(
-                            SmartCancellationService.actionLabel(for: sub.merchant),
-                            systemImage: "arrow.up.right.square"
-                        )
-                    }
-                    Button {
-                        vm.markSubscriptionCancelled(sub, reason: .cancelled)
-                    } label: { Label("I've cancelled it", systemImage: "checkmark.circle") }
-                    Button {
-                        vm.markSubscriptionCancelled(sub, reason: .notASubscription)
-                    } label: { Label("Not a subscription", systemImage: "xmark.circle") }
-                }
-            }
-        }
-        .padding()
-        .background(NC.warning.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: NC.cardRadius, style: .continuous))
-        .confirmationDialog(
-            selectedForAction.map { "Manage \($0.merchant)" } ?? "Manage subscription",
-            isPresented: Binding(
-                get: { selectedForAction != nil },
-                set: { if !$0 { selectedForAction = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: selectedForAction
-        ) { sub in
-            // Label is merchant-specific: "Open Netflix app", "Open Claude
-            // cancel page", "Email support", or the Google fallback.
-            Button(SmartCancellationService.actionLabel(for: sub.merchant)) {
-                SmartCancellationService.cancel(merchant: sub.merchant)
-            }
-            Button("I've cancelled it") {
-                vm.markSubscriptionCancelled(sub, reason: .cancelled)
-            }
-            Button("Not a subscription", role: .destructive) {
-                vm.markSubscriptionCancelled(sub, reason: .notASubscription)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { sub in
-            Text("\(sub.formattedAmount) · \(sub.occurrences) charges")
-        }
-    }
-}
 
 // MARK: - Life Score Card
 
