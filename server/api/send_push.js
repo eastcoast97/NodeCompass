@@ -163,10 +163,19 @@ function signApnsJwt({ teamId, keyId, privateKeyPem }) {
   const payloadB64 = b64url(Buffer.from(JSON.stringify(payload)));
   const signingInput = `${headerB64}.${payloadB64}`;
 
+  // Vercel env vars sometimes store multi-line values with literal `\n`
+  // escape sequences (or CRLF) instead of real newlines. OpenSSL's PEM
+  // decoder is strict — replace any literal `\n` with real `\n`, normalize
+  // CRLF, and trim accidental whitespace before parsing.
+  const normalizedKey = privateKeyPem
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
   const signer = crypto.createSign("SHA256");
   signer.update(signingInput);
   const signature = signer.sign({
-    key: privateKeyPem,
+    key: normalizedKey,
     format: "pem",
     dsaEncoding: "ieee-p1363",
   });
@@ -228,4 +237,3 @@ function sendApnsPush({ deviceToken, env, jwtToken, bundleId, payload }) {
     reqStream.end();
   });
 }
-// Vercel build trigger: 1777062351
