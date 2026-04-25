@@ -173,14 +173,29 @@ function signApnsJwt({ teamId, keyId, privateKeyPem }) {
   const payloadB64 = b64url(Buffer.from(JSON.stringify(payload)));
   const signingInput = `${headerB64}.${payloadB64}`;
 
-  // Vercel env vars sometimes store multi-line values with literal `\n`
-  // escape sequences (or CRLF) instead of real newlines. OpenSSL's PEM
-  // decoder is strict — replace any literal `\n` with real `\n`, normalize
-  // CRLF, and trim accidental whitespace before parsing.
-  const normalizedKey = privateKeyPem
-    .replace(/\\n/g, "\n")
-    .replace(/\r\n/g, "\n")
-    .trim();
+  // Reconstruct a valid PEM from whatever shape Vercel stored the value as.
+  // Three cases observed in the wild:
+  //   1. Real newlines preserved → already valid, just trim
+  //   2. Literal `\n` escape sequences → unescape
+  //   3. Single-line, spaces-where-newlines-should-be (Vercel's default
+  //      multiline-paste handling) → pull BEGIN/END markers out and rejoin
+  //      the base64 body with real newlines
+  const normalizedKey = (() => {
+    let s = (privateKeyPem || "").trim()
+      .replace(/\\n/g, "\n")
+      .replace(/\r\n/g, "\n");
+    if (s.includes("\n")) return s;            // case 1 or 2 — already valid
+
+    // Case 3: single-line string. Extract BEGIN/END markers, rejoin body
+    // (which is space-separated base64 chunks) with newlines.
+    const begin = s.match(/-----BEGIN [A-Z ]+-----/);
+    const end   = s.match(/-----END [A-Z ]+-----/);
+    if (!begin || !end) return s;              // not a PEM at all — let crypto throw
+    const bodyStart = s.indexOf(begin[0]) + begin[0].length;
+    const bodyEnd   = s.indexOf(end[0]);
+    const body = s.slice(bodyStart, bodyEnd).trim().replace(/\s+/g, "\n");
+    return `${begin[0]}\n${body}\n${end[0]}`;
+  })();
 
   const signer = crypto.createSign("SHA256");
   signer.update(signingInput);
