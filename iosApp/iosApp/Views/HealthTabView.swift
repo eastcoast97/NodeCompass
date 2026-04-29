@@ -15,6 +15,7 @@ struct HealthTabView: View {
     @State private var todayMood: MoodStore.MoodEntry?
     @State private var foodEntries: [FoodStore.FoodLogEntry] = []
     @State private var foodCalories: Int = 0
+    @State private var foodMacros: Macros = .zero
 
     @State private var habits: [HabitStore.Habit] = []
     @State private var completedHabitIds: Set<String> = []
@@ -280,6 +281,21 @@ struct HealthTabView: View {
                     Spacer()
                 }
 
+                // Macros consumed today — only render when at least one
+                // logged item had macro data attached. Keeps the card calm
+                // for users who track only meals (no nutrition).
+                if foodMacros != .zero {
+                    HStack(spacing: 8) {
+                        macroChip(label: "Protein", grams: foodMacros.protein, color: .red)
+                        macroChip(label: "Carbs",   grams: foodMacros.carbs,   color: .yellow)
+                        macroChip(label: "Fat",     grams: foodMacros.fat,     color: .indigo)
+                        if foodMacros.fiber > 0 {
+                            macroChip(label: "Fiber", grams: foodMacros.fiber, color: .green)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+
                 // Meal type badges
                 HStack(spacing: 8) {
                     ForEach(mealTypeSummary, id: \.type) { meal in
@@ -337,6 +353,22 @@ struct HealthTabView: View {
         let grouped = Dictionary(grouping: foodEntries, by: \.mealType)
         return grouped.map { MealSummary(type: $0.key, count: $0.value.count) }
             .sorted { $0.type < $1.type }
+    }
+
+    /// Compact macro chip used in the "Food Today" card to surface daily
+    /// protein / carbs / fat / fiber consumption alongside the calorie total.
+    private func macroChip(label: String, grams: Double, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Text("\(Int(round(grams)))g")
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(color)
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12), in: Capsule())
     }
 
     private func mealBadge(type: String, count: Int) -> some View {
@@ -606,8 +638,10 @@ struct HealthTabView: View {
         // Food
         let entries = await FoodStore.shared.entriesForToday()
         let cal = await FoodStore.shared.todayCalories
+        let macros = await FoodStore.shared.todayMacros
         foodEntries = entries
         foodCalories = cal
+        foodMacros = macros
 
         // Habits
         let allHabits = await HabitStore.shared.allHabits()

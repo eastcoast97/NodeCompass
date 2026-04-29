@@ -238,6 +238,13 @@ actor FoodStore {
         entriesForToday().compactMap { $0.totalCaloriesEstimate }.reduce(0, +)
     }
 
+    /// Sum of macros across every entry logged today. Per-entry macros are
+    /// derived from items at log time, so this is just an addition pass.
+    /// Returns Macros.zero when no items in any entry have macro data.
+    var todayMacros: Macros {
+        entriesForToday().compactMap { $0.totalMacros }.reduce(Macros.zero, +)
+    }
+
     // MARK: - Staple Food Detection
 
     /// Analyze logs to find staple foods (items eaten 3+ times in last 30 days).
