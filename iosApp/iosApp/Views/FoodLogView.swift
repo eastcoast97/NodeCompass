@@ -447,7 +447,7 @@ private struct FoodItemRow: View {
                     }
                     Text(amountDisplay)
                         .font(.subheadline.bold())
-                        .frame(minWidth: 36)
+                        .frame(minWidth: 56)
                     Button(action: onIncrement) {
                         Image(systemName: "plus")
                             .font(.caption.bold())
@@ -487,8 +487,18 @@ private struct FoodItemRow: View {
         return "\(amt) \(item.unit.label)"
     }
 
+    /// Stepper readout — for weighed/volume items we show the unit so the
+    /// "−  64  +" control reads "−  64g  +" and isn't mistaken for "64 burgers".
+    /// For .qty items the number alone is fine ("1", "2", "3").
     private var amountDisplay: String {
-        item.amount == floor(item.amount) ? "\(Int(item.amount))" : String(format: "%.0f", item.amount)
+        let n = item.amount == floor(item.amount)
+            ? "\(Int(item.amount))"
+            : String(format: "%.0f", item.amount)
+        switch item.unit {
+        case .qty:   return n
+        case .grams: return "\(n)g"
+        case .ml:    return "\(n)ml"
+        }
     }
 }
 
