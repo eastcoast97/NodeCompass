@@ -11,41 +11,25 @@ class IntegrationAuthAlert: ObservableObject {
 
     @Published var issues: [AuthIssue] = []
 
-    /// Check all integrations for problems. Called on app foreground + dashboard appear.
-    /// Async so we can attempt a silent token restore before judging auth state.
+    /// Check all integrations for problems. Called on app foreground +
+    /// dashboard appear.
+    ///
+    /// IMPORTANT — what we deliberately DON'T check:
+    /// Email "session expired" used to fire here whenever a connected Gmail
+    /// wasn't in GmailService.authenticatedUsers. But the Google Sign-In SDK
+    /// only auto-restores ONE account per cold launch, so for users with
+    /// multiple Gmails the secondary one ALWAYS shows as not-in-memory —
+    /// even though the keychain refresh token is fine. That meant the
+    /// dashboard banner kept reappearing on every foreground.
+    ///
+    /// EmailSyncViewModel.syncNow now auto-runs reAuthenticate when the
+    /// SDK lacks a fresh session, so the user gets a one-tap Google picker
+    /// confirmation when they actually tap Sync. No alarmist persistent
+    /// banner needed.
     func check() async {
-        var newIssues: [AuthIssue] = []
-
-        // Gmail — attempt silent restore, then check for expired sessions
-        let gmail = GmailService.shared
-        let connectedEmails = gmail.connectedEmails
-        if !connectedEmails.isEmpty {
-            // Await restore so we don't race against the token refresh
-            await gmail.restorePreviousSignIn()
-
-            let expiredEmails = connectedEmails.filter { !gmail.isAuthenticated(email: $0) }
-            if !expiredEmails.isEmpty {
-                let emailList = expiredEmails.count == 1
-                    ? expiredEmails[0]
-                    : "\(expiredEmails.count) accounts"
-                newIssues.append(AuthIssue(
-                    service: "Email",
-                    message: "\(emailList) — session expired, tap to re-authenticate",
-                    action: {
-                        // Navigate to You tab — post a notification
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("navigateToYouTab"),
-                            object: nil
-                        )
-                    }
-                ))
-            }
-        }
-
-        // Plaid — check if server is reachable (async, so skip if not already known)
-        // We just check if there are accounts but last sync had an error
-        // This is a lightweight check — the real error surfaces when sync fails
-
-        issues = newIssues
+        // Currently a no-op. Kept as a hook so future integrations (Plaid,
+        // bank, etc.) can surface real auth failures here without rewiring
+        // the dashboard banner.
+        issues = []
     }
 }
