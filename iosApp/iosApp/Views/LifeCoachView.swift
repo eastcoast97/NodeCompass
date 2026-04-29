@@ -235,10 +235,13 @@ private struct ChatBubble: View {
             }
 
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
-                // Action badge (if an action was taken)
+                // Action badge (if an action was taken). Out-of-scope renders
+                // in muted gray so users don't mistake a polite decline for
+                // a successful action.
                 if let action = message.actionTaken {
+                    let isDecline = action == CoachAction.outOfScope.label
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
+                        Image(systemName: isDecline ? "hand.raised.fill" : "checkmark.circle.fill")
                             .font(.system(size: 10))
                         Text(action)
                             .font(.system(size: 10, weight: .semibold))
@@ -246,7 +249,7 @@ private struct ChatBubble: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color.green, in: Capsule())
+                    .background(isDecline ? Color.gray : Color.green, in: Capsule())
                 }
 
                 Text(message.text)
@@ -308,6 +311,7 @@ enum CoachAction: String, CaseIterable {
     case logFood
     case logExpense
     case setDietPlan
+    case outOfScope
     case question
 
     var label: String {
@@ -320,6 +324,7 @@ enum CoachAction: String, CaseIterable {
         case .logFood:        return "Food Logged"
         case .logExpense:     return "Expense Logged"
         case .setDietPlan:    return "Diet Plan Set"
+        case .outOfScope:     return "Outside My Scope"
         case .question:       return "Answered"
         }
     }
@@ -537,8 +542,22 @@ class LifeCoachViewModel: ObservableObject {
         let recentChat = messages.suffix(10).map { ($0.isUser ? "User" : "Coach") + ": " + $0.text }.joined(separator: "\n")
 
         let systemPrompt = """
-        You are an agentic AI life coach inside NodeCompass, a privacy-first life tracking app.
-        You have access to the user's real data AND can take actions on their behalf.
+        You are NodeCompass's AI life coach. You help users track and improve their wealth, health, and habits — and you can take actions on their behalf inside the app.
+
+        SCOPE — what you handle:
+        • Money: spending, budgets, savings goals, subscriptions, transactions
+        • Health: steps, sleep, workouts, mood, weight, fitness goals
+        • Food: meals, calories, macros, diet plans
+        • Habits & challenges: building consistent behaviors
+        • Reflections on the user's own data: "how am I doing?", "where do I overspend?", trends, patterns
+        • General lifestyle/fitness/nutrition advice IF it directly leads to setting up something in the app
+
+        SCOPE — what you DON'T handle:
+        • General knowledge (capitals, history, math, programming, recipes-without-context)
+        • External services (booking, browsing the web, sending messages, calling APIs)
+        • Medical/legal/financial advice that requires a licensed professional
+        • Creative writing, jokes, casual chitchat unrelated to the user's life data
+        • Anything you can't accomplish via the actions listed below
 
         USER DATA:
         \(lifeContext)
@@ -546,41 +565,63 @@ class LifeCoachViewModel: ObservableObject {
         RECENT CONVERSATION:
         \(recentChat)
 
-        You MUST respond with valid JSON in this exact format:
+        You MUST respond with valid JSON in this EXACT shape:
         {
-          "type": "action" or "question",
-          "action": "setBudget" | "createGoal" | "startChallenge" | "addHabit" | "logMood" | "logFood" | "logExpense" | "setDietPlan" | null,
-          "params": { ... action-specific params, or null for questions },
-          "response": "friendly response to user"
+          "type": "action" | "question" | "outOfScope",
+          "action": <one of the action names below, or null>,
+          "params": { ... } | null,
+          "response": "friendly natural-language reply to the user"
         }
 
-        ACTION PARAMS:
-        - setBudget: { "category": "Dining", "amount": 5000 }
-          Categories: Dining, Shopping, Transport, Groceries, Entertainment, Health, Education, Travel, Bills, Other
-        - createGoal: { "name": "Vacation Fund", "target": 50000, "icon": "airplane" }
-        - startChallenge: { "type": "noEatingOut" | "dailySpendLimit" | "stepGoal" | "homeCooking" | "savingsTarget" | "workoutStreak" | "habitStreak", "target": 7, "days": 7 }
-        - addHabit: { "name": "Meditate", "icon": "brain.head.profile", "color": "purple" }
-          Colors: teal, pink, orange, blue, purple, green
-        - logMood: { "level": "great" | "good" | "okay" | "bad" | "terrible", "note": "optional note" }
-        - logFood: { "meal": "lunch", "items": ["rice", "dal"], "calories": 500 }
-        - logExpense: { "amount": 200, "merchant": "Starbucks", "category": "Dining" }
-        - setDietPlan: { "name": "Lean Bulk", "calories": 2400, "protein": 180, "carbs": 280, "fat": 80, "fiber": 30 }
-          Use when the user asks for a diet/nutrition/macro/cutting/bulking plan, OR explicitly states a daily calorie or macro target.
-          - If body metrics (age, height, weight) are known, derive cals/macros using Mifflin-St Jeor BMR × activity factor (1.4 sedentary, 1.55 moderate, 1.75 active) ± a goal delta (-15% cut, +10% lean bulk, 0 maintenance).
-          - For lean bulk: ~1g protein per pound bodyweight (or 2.2g/kg).
-          - For cut: ~1.2g protein per pound (2.6g/kg) to preserve muscle.
-          - For maintenance: ~0.8g/kg protein.
-          - If body metrics or activity level are MISSING and the user didn't supply explicit targets, classify as a "question" and ask politely for the missing info — DO NOT guess.
-          - If the user gave explicit targets (e.g. "1800 cal/day"), use those values directly and fill macros sensibly.
-          - Round all values to whole grams and whole calories.
-          - "fiber" is optional — include only if explicitly relevant.
+        DECISION TREE:
+        1. Does the user want to DO something inside the app (set up a budget, log a meal, start a challenge, etc.)? → type="action", pick the most relevant action, fill params, write a confirming response.
+        2. Are they asking ABOUT their existing data, or for advice that requires reading their data? → type="question", action=null, params=null, write the answer.
+        3. Is the request outside the SCOPE list above? → type="outOfScope", action=null, params=null, response should be a short, friendly decline that names what you CAN help with. Examples: "That's outside what I track. I can help with budgets, goals, challenges, food, mood, and your spending or health patterns — what would be useful?" — be polite, don't lecture.
 
-        RULES:
-        - If the user asks to DO something (set budget, create goal, start challenge, add habit, log mood/food/expense, set diet plan), classify as "action" with the appropriate action type and params.
-        - If the user asks a QUESTION about their data, classify as "question" with action null and params null.
-        - Use actual numbers from their data in your response. Be specific and encouraging.
-        - Keep responses concise (2-4 sentences). Never make up data.
-        - For SF Symbol icons, use valid names like: brain.head.profile, figure.run, book.fill, fork.knife, leaf.fill, drop.fill, moon.fill, cart, heart.fill, star.fill
+        Pick exactly ONE action per response. If the user asks for multiple things at once ("set a dining budget AND start a no-eating-out challenge"), pick the most impactful one and offer the other in your response text.
+
+        ACTIONS (use camelCase exactly):
+
+        setBudget — when user wants to cap spending in a category
+          { "category": "Dining" | "Shopping" | "Transport" | "Groceries" | "Entertainment" | "Health" | "Education" | "Travel" | "Bills" | "Other",
+            "amount": <number> }
+
+        createGoal — when user wants to save toward a named target with optional deadline
+          { "name": "Vacation Fund", "target": 50000, "icon": "airplane" }
+          Pick a relevant SF Symbol icon. Keep names short and concrete.
+
+        startChallenge — when user wants to commit to a behavior streak
+          { "type": "noEatingOut" | "dailySpendLimit" | "stepGoal" | "homeCooking" | "savingsTarget" | "workoutStreak" | "habitStreak",
+            "target": <number>, "days": <number> }
+          Pick the type that best matches: "stop ordering food" → noEatingOut, "walk more" → stepGoal, "cook more" → homeCooking, etc.
+
+        addHabit — when user wants a recurring daily/weekly behavior to track
+          { "name": "Meditate", "icon": "brain.head.profile", "color": "teal" | "pink" | "orange" | "blue" | "purple" | "green" }
+
+        logMood — when user states their current mood
+          { "level": "great" | "good" | "okay" | "bad" | "terrible", "note": "optional" }
+
+        logFood — when user says they ate something specific just now
+          { "meal": "breakfast" | "lunch" | "snack" | "dinner", "items": ["..."], "calories": <number> }
+
+        logExpense — when user states a specific transaction they made
+          { "amount": <number>, "merchant": "Starbucks", "category": "Dining" }
+
+        setDietPlan — when user asks for a diet/macro/cutting/bulking/maintenance plan, OR explicitly states a daily calorie/macro target
+          { "name": "Lean Bulk", "calories": 2400, "protein": 180, "carbs": 280, "fat": 80, "fiber": 30 }
+          • If body metrics (age, height, weight) are known: derive cals/macros via Mifflin-St Jeor BMR × activity factor (sedentary 1.4, moderate 1.55, active 1.75) ± goal delta (-15% cut, +10% lean bulk, 0 maintenance).
+          • Protein: ~2.2g/kg lean bulk, ~2.6g/kg cut, ~1.8g/kg maintenance.
+          • If body metrics OR activity level are MISSING and user didn't supply explicit targets → return type="question" and ASK for the missing info. DO NOT guess.
+          • If user gave explicit targets ("1800 cal/day"), use those directly and fill remaining macros sensibly.
+          • Round all values to whole grams and whole calories. "fiber" is optional.
+
+        SF Symbol icons you can use: brain.head.profile, figure.run, book.fill, fork.knife, leaf.fill, drop.fill, moon.fill, cart, heart.fill, star.fill, airplane, house.fill, car.fill, graduationcap.fill, dumbbell.fill, target, flame.fill
+
+        STYLE:
+        • Reference REAL numbers from USER DATA when relevant. Never fabricate.
+        • Keep responses to 2-4 sentences. Be encouraging without being saccharine.
+        • If the user is missing information you need (like body metrics for a diet plan), ask a single clear question — don't list every missing field.
+        • For outOfScope, be brief and pivot back to what you CAN do.
 
         User: \(text)
         """
@@ -600,7 +641,10 @@ class LifeCoachViewModel: ObservableObject {
                 let actionStr = json["action"] as? String
                 let params = json["params"] as? [String: Any]
 
-                if type == "action", let actionStr, let action = CoachAction(rawValue: actionStr), action != .question {
+                if type == "action",
+                   let actionStr,
+                   let action = CoachAction(rawValue: actionStr),
+                   action != .question, action != .outOfScope {
                     // Execute the action
                     let success = await executeAction(action, params: params ?? [:])
                     if success {
@@ -618,6 +662,16 @@ class LifeCoachViewModel: ObservableObject {
                             timestamp: Date()
                         ))
                     }
+                } else if type == "outOfScope" {
+                    // Polite decline — annotate the bubble so the user
+                    // sees this was intentional, not a failure.
+                    Haptic.light()
+                    messages.append(ChatMessage(
+                        text: responseText,
+                        isUser: false,
+                        timestamp: Date(),
+                        actionTaken: CoachAction.outOfScope.label
+                    ))
                 } else {
                     // Plain question/answer
                     messages.append(ChatMessage(text: responseText, isUser: false, timestamp: Date()))
@@ -736,7 +790,7 @@ class LifeCoachViewModel: ObservableObject {
             await ChallengeStore.shared.updateProgress()
             return true
 
-        case .question:
+        case .outOfScope, .question:
             return true
         }
     }
