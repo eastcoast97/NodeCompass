@@ -149,9 +149,7 @@ struct YouTabView: View {
                         isConnected: true,
                         isSyncing: false,
                         secondaryAction: ("Sync All", {
-                            for account in emailVM.accounts where account.isAuthenticated {
-                                emailVM.syncNow(email: account.email)
-                            }
+                            emailVM.syncAllPossible()
                         })
                     )
 

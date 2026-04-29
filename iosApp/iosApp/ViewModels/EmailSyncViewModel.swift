@@ -189,8 +189,40 @@ class EmailSyncViewModel: ObservableObject {
 
     // MARK: - Sync (per account)
 
+    /// Used by the "Sync All" button. Only touches accounts that have a
+    /// fresh in-memory SDK session — others would each trigger a Google
+    /// account picker, which would be jarring in succession. The user can
+    /// still tap individual "Sync" buttons (which DO auto-handle re-auth)
+    /// for non-restored accounts when they're ready.
+    func syncAllPossible() {
+        Task {
+            for account in accounts where gmail.isAuthenticated(email: account.email) {
+                await fullSync(for: account.email)
+            }
+        }
+    }
+
     func syncNow(email: String) {
-        Task { await fullSync(for: email) }
+        Task {
+            // For secondary accounts, the Google Sign-In SDK doesn't restore
+            // their session on cold launch (only one user can be auto-restored).
+            // Run the re-auth flow first when we don't have a fresh session in
+            // memory — Google will pre-fill the picker with the account hint
+            // so the user just confirms with one tap. After that, sync runs
+            // normally.
+            if !gmail.isAuthenticated(email: email) {
+                guard let idx = accounts.firstIndex(where: { $0.email == email }) else { return }
+                accounts[idx].errorMessage = nil
+                do {
+                    try await gmail.reAuthenticate(email: email)
+                } catch {
+                    if (error as NSError).code == GIDSignInError.canceled.rawValue { return }
+                    accounts[idx].errorMessage = "Sign-in failed: \(error.localizedDescription)"
+                    return
+                }
+            }
+            await fullSync(for: email)
+        }
     }
 
     /// Re-scan all emails from scratch (clears processed cache, re-parses everything).
@@ -247,9 +279,15 @@ class EmailSyncViewModel: ObservableObject {
     private func handleSyncError(_ error: GmailServiceError, for email: String, at idx: Int) {
         switch error {
         case .needsReAuth:
-            accounts[idx].isAuthenticated = false
+            // The Google Sign-In SDK only restores ONE account on cold launch,
+            // so secondary accounts hit this path on every fresh sync — even
+            // though the user has a valid keychain refresh token. Do NOT flip
+            // isAuthenticated to false here; that triggered an alarmist
+            // "Needs re-authentication" pill that came back on every app
+            // re-entry. Instead set a quiet errorMessage. The Sync button
+            // path (`syncNow`) auto-handles the re-auth dance when needed.
             accounts[idx].isSyncing = false
-            accounts[idx].errorMessage = "Session expired. Tap to re-authenticate."
+            accounts[idx].errorMessage = "Tap Sync to refresh sign-in."
         default:
             accounts[idx].errorMessage = error.localizedDescription
             accounts[idx].isSyncing = false
