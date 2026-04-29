@@ -307,6 +307,7 @@ enum CoachAction: String, CaseIterable {
     case logMood
     case logFood
     case logExpense
+    case setDietPlan
     case question
 
     var label: String {
@@ -318,6 +319,7 @@ enum CoachAction: String, CaseIterable {
         case .logMood:        return "Mood Logged"
         case .logFood:        return "Food Logged"
         case .logExpense:     return "Expense Logged"
+        case .setDietPlan:    return "Diet Plan Set"
         case .question:       return "Answered"
         }
     }
@@ -363,6 +365,38 @@ class LifeCoachViewModel: ObservableObject {
     func buildContext() async {
         var ctx: [String] = []
         ctx.append("Today is \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).")
+
+        // Body metrics — needed for diet plan TDEE calculation. Coach is told
+        // explicitly when each is missing so it can ask the user instead of
+        // hallucinating.
+        let info = await MainActor.run { PersonalInfoStore.shared.info }
+        var bodyParts: [String] = []
+        if let age = info.age { bodyParts.append("age \(age)") }
+        if let h = info.heightCm { bodyParts.append("height \(Int(h))cm") }
+        if let w = info.weightKg { bodyParts.append("weight \(Int(w))kg") }
+        if !bodyParts.isEmpty {
+            ctx.append("Body: \(bodyParts.joined(separator: ", ")).")
+        }
+        var missing: [String] = []
+        if info.age == nil { missing.append("age") }
+        if info.heightCm == nil { missing.append("height") }
+        if info.weightKg == nil { missing.append("weight") }
+        if !missing.isEmpty {
+            ctx.append("Missing body info: \(missing.joined(separator: ", ")). Ask the user before computing a diet plan from scratch.")
+        }
+
+        // Today's food intake (calories + macros) — diet plan progress comes
+        // from this aggregation, so the coach should reference it when asked.
+        let foodCal = await FoodStore.shared.todayCalories
+        let foodMac = await FoodStore.shared.todayMacros
+        if foodCal > 0 || foodMac != .zero {
+            ctx.append("Eaten today: \(foodCal) kcal, \(Int(round(foodMac.protein)))g P, \(Int(round(foodMac.carbs)))g C, \(Int(round(foodMac.fat)))g F.")
+        }
+
+        // Active diet plan — so coach knows whether one is already running.
+        if let plan = await ChallengeStore.shared.activeDietPlan(), let t = plan.macroTargets {
+            ctx.append("Active diet plan '\(plan.title)': \(Int(t.calories)) kcal/\(Int(t.protein))g P/\(Int(t.carbs))g C/\(Int(t.fat))g F per day, streak \(plan.dietStreakDays) days.")
+        }
 
         // Spending
         let spent = TransactionStore.shared.totalSpendThisMonth
@@ -515,7 +549,7 @@ class LifeCoachViewModel: ObservableObject {
         You MUST respond with valid JSON in this exact format:
         {
           "type": "action" or "question",
-          "action": "setBudget" | "createGoal" | "startChallenge" | "addHabit" | "logMood" | "logFood" | "logExpense" | null,
+          "action": "setBudget" | "createGoal" | "startChallenge" | "addHabit" | "logMood" | "logFood" | "logExpense" | "setDietPlan" | null,
           "params": { ... action-specific params, or null for questions },
           "response": "friendly response to user"
         }
@@ -530,9 +564,19 @@ class LifeCoachViewModel: ObservableObject {
         - logMood: { "level": "great" | "good" | "okay" | "bad" | "terrible", "note": "optional note" }
         - logFood: { "meal": "lunch", "items": ["rice", "dal"], "calories": 500 }
         - logExpense: { "amount": 200, "merchant": "Starbucks", "category": "Dining" }
+        - setDietPlan: { "name": "Lean Bulk", "calories": 2400, "protein": 180, "carbs": 280, "fat": 80, "fiber": 30 }
+          Use when the user asks for a diet/nutrition/macro/cutting/bulking plan, OR explicitly states a daily calorie or macro target.
+          - If body metrics (age, height, weight) are known, derive cals/macros using Mifflin-St Jeor BMR × activity factor (1.4 sedentary, 1.55 moderate, 1.75 active) ± a goal delta (-15% cut, +10% lean bulk, 0 maintenance).
+          - For lean bulk: ~1g protein per pound bodyweight (or 2.2g/kg).
+          - For cut: ~1.2g protein per pound (2.6g/kg) to preserve muscle.
+          - For maintenance: ~0.8g/kg protein.
+          - If body metrics or activity level are MISSING and the user didn't supply explicit targets, classify as a "question" and ask politely for the missing info — DO NOT guess.
+          - If the user gave explicit targets (e.g. "1800 cal/day"), use those values directly and fill macros sensibly.
+          - Round all values to whole grams and whole calories.
+          - "fiber" is optional — include only if explicitly relevant.
 
         RULES:
-        - If the user asks to DO something (set budget, create goal, start challenge, add habit, log mood/food/expense), classify as "action" with the appropriate action type and params.
+        - If the user asks to DO something (set budget, create goal, start challenge, add habit, log mood/food/expense, set diet plan), classify as "action" with the appropriate action type and params.
         - If the user asks a QUESTION about their data, classify as "question" with action null and params null.
         - Use actual numbers from their data in your response. Be specific and encouraging.
         - Keep responses concise (2-4 sentences). Never make up data.
@@ -662,6 +706,34 @@ class LifeCoachViewModel: ObservableObject {
                   let merchant = params["merchant"] as? String else { return false }
             let category = params["category"] as? String
             TransactionStore.shared.addManualTransaction(amount: amount, merchant: merchant, category: category)
+            return true
+
+        case .setDietPlan:
+            // Tolerate Int OR Double for every macro field — Groq sometimes
+            // returns whole-number ints, sometimes decimals.
+            func d(_ key: String) -> Double? {
+                if let v = params[key] as? Double { return v }
+                if let v = params[key] as? Int { return Double(v) }
+                return nil
+            }
+            guard let name = params["name"] as? String,
+                  let cals = d("calories"), cals > 0,
+                  let protein = d("protein"), protein > 0,
+                  let carbs = d("carbs"),
+                  let fat = d("fat") else {
+                return false
+            }
+            let targets = ChallengeStore.MacroTargets(
+                calories: cals,
+                protein: protein,
+                carbs: carbs,
+                fat: fat,
+                fiber: d("fiber")
+            )
+            await ChallengeStore.shared.createDietPlan(name: name, targets: targets)
+            // Refresh progress immediately so the new plan card shows today's
+            // running totals on first render.
+            await ChallengeStore.shared.updateProgress()
             return true
 
         case .question:

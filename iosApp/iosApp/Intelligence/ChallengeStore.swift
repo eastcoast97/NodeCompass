@@ -103,11 +103,30 @@ actor ChallengeStore {
         /// updates are uploaded to Supabase after each `updateProgress()` run.
         var scope: Scope
 
+        /// Per-day macro targets. Only populated for `.dietPlan` challenges.
+        /// nil for every other type.
+        var macroTargets: MacroTargets?
+
+        /// Today's running totals against `macroTargets`. Refreshed by
+        /// `updateProgress()` from FoodStore — resets at midnight when the
+        /// underlying `entriesForToday()` window rolls over.
+        var macroProgress: MacroTargets?
+
+        /// Day-streak counter for diet plans — increments on midnight rollover
+        /// when the previous day hit ≥80% on calories AND protein. Persists
+        /// across days; resets to 0 on a miss day.
+        var dietStreakDays: Int
+
+        /// Date of the most recent streak evaluation, used to detect the
+        /// midnight rollover and avoid double-counting within the same day.
+        var dietLastEvaluatedDate: Date?
+
         enum CodingKeys: String, CodingKey {
             case id, title, type, targetValue, currentValue
             case startDate, endDate, isCompleted, completedAt
             case pillar, difficulty, subtitle, unlockAchievement, catalogId
             case scope
+            case macroTargets, macroProgress, dietStreakDays, dietLastEvaluatedDate
         }
 
         /// Custom decoder that tolerates pre-Stage-1 persistence by defaulting
@@ -131,6 +150,12 @@ actor ChallengeStore {
             catalogId = try c.decodeIfPresent(String.self, forKey: .catalogId)
             // Stage 2.2+ field; pre-existing challenges default to solo.
             scope = try c.decodeIfPresent(Scope.self, forKey: .scope) ?? .solo
+            // Diet-plan fields — added with the AI nutrition feature, so
+            // every pre-existing challenge in keychain decodes nil/0 here.
+            macroTargets = try c.decodeIfPresent(MacroTargets.self, forKey: .macroTargets)
+            macroProgress = try c.decodeIfPresent(MacroTargets.self, forKey: .macroProgress)
+            dietStreakDays = try c.decodeIfPresent(Int.self, forKey: .dietStreakDays) ?? 0
+            dietLastEvaluatedDate = try c.decodeIfPresent(Date.self, forKey: .dietLastEvaluatedDate)
         }
 
         /// Memberwise init for code-created challenges. Keeps the old call
@@ -150,7 +175,11 @@ actor ChallengeStore {
             subtitle: String = "",
             unlockAchievement: AchievementEngine.AchievementType? = nil,
             catalogId: String? = nil,
-            scope: Scope = .solo
+            scope: Scope = .solo,
+            macroTargets: MacroTargets? = nil,
+            macroProgress: MacroTargets? = nil,
+            dietStreakDays: Int = 0,
+            dietLastEvaluatedDate: Date? = nil
         ) {
             self.id = id
             self.title = title
@@ -167,6 +196,10 @@ actor ChallengeStore {
             self.unlockAchievement = unlockAchievement
             self.catalogId = catalogId
             self.scope = scope
+            self.macroTargets = macroTargets
+            self.macroProgress = macroProgress
+            self.dietStreakDays = dietStreakDays
+            self.dietLastEvaluatedDate = dietLastEvaluatedDate
         }
     }
 
@@ -178,6 +211,7 @@ actor ChallengeStore {
         case savingsTarget      // Save $X this week/month
         case workoutStreak      // Work out X days in a row
         case habitStreak        // Complete all habits X days
+        case dietPlan           // Daily macro/calorie target — multi-target challenge
 
         var title: String {
             switch self {
@@ -188,6 +222,7 @@ actor ChallengeStore {
             case .savingsTarget: return "Savings Target"
             case .workoutStreak: return "Workout Streak"
             case .habitStreak: return "Habit Streak"
+            case .dietPlan: return "Diet Plan"
             }
         }
 
@@ -200,6 +235,7 @@ actor ChallengeStore {
             case .savingsTarget: return "banknote"
             case .workoutStreak: return "figure.run.circle"
             case .habitStreak: return "checkmark.circle"
+            case .dietPlan: return "target"
             }
         }
 
@@ -208,6 +244,7 @@ actor ChallengeStore {
             case .noEatingOut, .dailySpendLimit, .homeCooking, .habitStreak: return 7
             case .stepGoal, .workoutStreak: return 7
             case .savingsTarget: return 30
+            case .dietPlan: return 30   // recurring, daily reset; 30d horizon by default
             }
         }
 
@@ -220,6 +257,7 @@ actor ChallengeStore {
             case .savingsTarget: return NC.currencySymbol
             case .workoutStreak: return "days"
             case .habitStreak: return "days"
+            case .dietPlan: return "kcal"
             }
         }
 
@@ -232,8 +270,25 @@ actor ChallengeStore {
             case .savingsTarget: return 5000
             case .workoutStreak: return 5
             case .habitStreak: return 7
+            case .dietPlan: return 2000      // calories — overridden when AI generates a plan
             }
         }
+    }
+
+    // MARK: - Diet Plan Multi-Target
+
+    /// Daily macro + calorie targets for `.dietPlan` challenges. Lives on
+    /// Challenge as an optional sidecar so existing challenges decode cleanly.
+    /// Progress (today's running totals) is held in `dietPlanProgress` on
+    /// Challenge — refreshed by `updateProgress()` from FoodStore.
+    struct MacroTargets: Codable, Equatable {
+        let calories: Double
+        let protein: Double         // grams/day
+        let carbs: Double
+        let fat: Double
+        let fiber: Double?          // optional — many AI plans skip fiber
+
+        static let zero = MacroTargets(calories: 0, protein: 0, carbs: 0, fat: 0, fiber: nil)
     }
 
     // MARK: - Init
@@ -277,6 +332,52 @@ actor ChallengeStore {
         )
         challenges.append(challenge)
         saveToDisk()
+    }
+
+    /// Create a `.dietPlan` challenge from AI-derived (or user-stated) macro
+    /// targets. Replaces any existing active diet plan — only one runs at a
+    /// time. Returns the new challenge id so the caller can navigate to it.
+    @discardableResult
+    func createDietPlan(name: String, targets: MacroTargets) -> String {
+        // End any existing active diet plan — having two competing daily
+        // targets would confuse progress UI.
+        let now = Date()
+        for i in challenges.indices {
+            if challenges[i].type == .dietPlan && !challenges[i].isCompleted && challenges[i].endDate >= now {
+                challenges[i].endDate = now.addingTimeInterval(-1)
+            }
+        }
+
+        let end = Calendar.current.date(byAdding: .day, value: ChallengeType.dietPlan.defaultDuration, to: now) ?? now
+        let challenge = Challenge(
+            id: UUID().uuidString,
+            title: name,
+            type: .dietPlan,
+            targetValue: targets.calories,    // primary metric for legacy progress UI
+            currentValue: 0,
+            startDate: now,
+            endDate: end,
+            isCompleted: false,
+            completedAt: nil,
+            pillar: .health,
+            difficulty: .medium,
+            subtitle: "Daily macro target — auto-tracks from food log",
+            scope: .solo,
+            macroTargets: targets,
+            macroProgress: MacroTargets.zero,
+            dietStreakDays: 0,
+            dietLastEvaluatedDate: nil
+        )
+        challenges.append(challenge)
+        saveToDisk()
+        return challenge.id
+    }
+
+    /// Active diet plan challenge, if one exists. There can only be one at
+    /// a time — `createDietPlan` ends any previous active plan.
+    func activeDietPlan() -> Challenge? {
+        let now = Date()
+        return challenges.first { $0.type == .dietPlan && !$0.isCompleted && $0.endDate >= now }
     }
 
     /// Start a challenge from a `ChallengeCatalog.Entry`. Carries forward the
@@ -379,7 +480,33 @@ actor ChallengeStore {
                 // Count consecutive days where all habits were completed
                 let streakDays = await countHabitStreakDays(since: challenge.startDate)
                 challenges[i].currentValue = Double(streakDays)
+
+            case .dietPlan:
+                // Step 1: evaluate streak FIRST. The current macroProgress
+                // is yesterday's last-known totals (if we crossed midnight
+                // since last update); use it for the streak decision before
+                // overwriting it with today's running totals below.
+                evaluateDietStreakIfNeeded(challengeIndex: i, now: now)
+
+                // Step 2: refresh today's running totals from FoodStore.
+                let cals = await FoodStore.shared.todayCalories
+                let macros = await FoodStore.shared.todayMacros
+                challenges[i].currentValue = Double(cals)
+
+                let targets = challenges[i].macroTargets ?? MacroTargets.zero
+                challenges[i].macroProgress = MacroTargets(
+                    calories: Double(cals),
+                    protein:  macros.protein,
+                    carbs:    macros.carbs,
+                    fat:      macros.fat,
+                    fiber:    targets.fiber == nil ? nil : macros.fiber
+                )
             }
+
+            // Diet plans are recurring (daily reset) — they don't "complete"
+            // when a single day's macros hit target. Streak handles success;
+            // user explicitly ends the plan or it expires after endDate.
+            if challenges[i].type == .dietPlan { continue }
 
             // Check completion: target met
             if challenges[i].currentValue >= challenge.targetValue && !challenges[i].isCompleted {
@@ -557,6 +684,51 @@ actor ChallengeStore {
             day = prev
         }
         return count
+    }
+
+    // MARK: - Diet Plan Streak
+
+    /// Streak threshold: ≥80% on BOTH calories and protein (the two metrics
+    /// that actually drive most fitness goals). Picking two-of-four instead
+    /// of all-of-four keeps the streak attainable on slightly-off days.
+    private static let dietStreakHitThreshold: Double = 0.80
+
+    /// Evaluate the diet streak when the calendar day has flipped since
+    /// the last evaluation. Reads `macroProgress` (which still holds
+    /// yesterday's totals at this point in updateProgress) against
+    /// `macroTargets` and either increments or resets `dietStreakDays`.
+    /// No-op if the day hasn't changed yet.
+    private func evaluateDietStreakIfNeeded(challengeIndex i: Int, now: Date) {
+        let cal = Calendar.current
+        let lastDate = challenges[i].dietLastEvaluatedDate ?? challenges[i].startDate
+
+        // Only evaluate when we've crossed midnight since last check.
+        let lastDay = cal.startOfDay(for: lastDate)
+        let today   = cal.startOfDay(for: now)
+        guard today > lastDay else { return }
+
+        // Skip the very first evaluation (no "yesterday" to score yet) but
+        // stamp the date so subsequent days flow normally.
+        guard cal.isDate(lastDate, inSameDayAs: challenges[i].startDate) == false
+              || challenges[i].macroProgress != nil else {
+            challenges[i].dietLastEvaluatedDate = now
+            return
+        }
+
+        let yesterday = challenges[i].macroProgress ?? MacroTargets.zero
+        let targets = challenges[i].macroTargets ?? MacroTargets.zero
+        guard targets.calories > 0, targets.protein > 0 else {
+            challenges[i].dietLastEvaluatedDate = now
+            return
+        }
+
+        let calRatio = yesterday.calories / targets.calories
+        let proRatio = yesterday.protein / targets.protein
+        let hit = calRatio >= Self.dietStreakHitThreshold
+              && proRatio >= Self.dietStreakHitThreshold
+
+        challenges[i].dietStreakDays = hit ? challenges[i].dietStreakDays + 1 : 0
+        challenges[i].dietLastEvaluatedDate = now
     }
 
     // MARK: - Persistence

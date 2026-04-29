@@ -6,6 +6,8 @@ struct MindTabView: View {
     @State private var lifeScore: LifeScoreEngine.DailyScore?
     @State private var previousScore: Int?
     @State private var activeChallenges: [ChallengeStore.Challenge] = []
+    @State private var dietPlan: ChallengeStore.Challenge?
+    @State private var showEndPlanConfirm = false
     @State private var earnedAchievements: [AchievementEngine.Achievement] = []
     @State private var lockedTypes: [AchievementEngine.AchievementType] = []
     @State private var insights: [Insight] = []
@@ -39,6 +41,10 @@ struct MindTabView: View {
                             .sectionAppear(delay: 0.05)
                         aiCoachCard
                             .sectionAppear(delay: 0.1)
+                        if dietPlan != nil {
+                            dietPlanHero
+                                .sectionAppear(delay: 0.12)
+                        }
                         challengesSection
                             .sectionAppear(delay: 0.15)
                         circlesCard
@@ -254,6 +260,136 @@ struct MindTabView: View {
     }
 
     // MARK: - 3. Active Challenges
+
+    // MARK: - Diet Plan Hero (only when active)
+
+    /// AI-generated daily macro target. Renders as a hero card above the
+    /// regular challenges list. Tapping the menu lets the user end the plan.
+    @ViewBuilder
+    private var dietPlanHero: some View {
+        if let plan = dietPlan,
+           let targets = plan.macroTargets,
+           let progress = plan.macroProgress {
+            VStack(alignment: .leading, spacing: 14) {
+                // Header
+                HStack {
+                    Image(systemName: "target")
+                        .foregroundStyle(NC.teal)
+                    Text(plan.title)
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if plan.dietStreakDays > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                            Text("\(plan.dietStreakDays)d")
+                                .font(.caption.bold())
+                                .foregroundStyle(.orange)
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.orange.opacity(0.12), in: Capsule())
+                    }
+                    Menu {
+                        Button(role: .destructive) {
+                            showEndPlanConfirm = true
+                        } label: {
+                            Label("End Plan", systemImage: "xmark.circle")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Calorie banner — primary metric
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(Int(round(progress.calories)))")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(NC.teal)
+                        .monospacedDigit()
+                    Text("/ \(Int(round(targets.calories))) kcal")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(round((progress.calories / max(targets.calories, 1)) * 100)))%")
+                        .font(.caption.bold().monospacedDigit())
+                        .foregroundStyle(progressColor(for: progress.calories, target: targets.calories))
+                }
+
+                // Calorie progress bar
+                progressBar(value: progress.calories, target: targets.calories, color: NC.teal)
+
+                // Macro rows
+                VStack(spacing: 10) {
+                    macroRow(label: "Protein", current: progress.protein, target: targets.protein, color: .red)
+                    macroRow(label: "Carbs",   current: progress.carbs,   target: targets.carbs,   color: .yellow)
+                    macroRow(label: "Fat",     current: progress.fat,     target: targets.fat,     color: .indigo)
+                    if let fiberTarget = targets.fiber {
+                        macroRow(label: "Fiber", current: progress.fiber ?? 0, target: fiberTarget, color: .green)
+                    }
+                }
+
+                Text("Resets daily • Streak counts when you hit ≥80% on calories AND protein")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .card()
+            .alert("End diet plan?", isPresented: $showEndPlanConfirm) {
+                Button("End Plan", role: .destructive) {
+                    Task { await endDietPlan() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your daily target will stop tracking. You can always ask the AI Coach to set a new one.")
+            }
+        }
+    }
+
+    private func macroRow(label: String, current: Double, target: Double, color: Color) -> some View {
+        VStack(spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(Int(round(current)))/\(Int(round(target)))g")
+                    .font(.caption.bold().monospacedDigit())
+                    .foregroundStyle(color)
+            }
+            progressBar(value: current, target: target, color: color)
+        }
+    }
+
+    private func progressBar(value: Double, target: Double, color: Color) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(color.opacity(0.15))
+                    .frame(height: 6)
+                let pct = target > 0 ? min(value / target, 1.2) : 0
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(color)
+                    .frame(width: max(0, geo.size.width * pct), height: 6)
+            }
+        }
+        .frame(height: 6)
+    }
+
+    private func progressColor(for value: Double, target: Double) -> Color {
+        guard target > 0 else { return .secondary }
+        let ratio = value / target
+        if ratio < 0.8 { return .orange }
+        if ratio > 1.15 { return .red }   // overshooting on calories
+        return .green
+    }
+
+    private func endDietPlan() async {
+        guard let plan = dietPlan else { return }
+        await ChallengeStore.shared.deleteChallenge(id: plan.id)
+        dietPlan = nil
+    }
 
     private var challengesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -553,8 +689,14 @@ struct MindTabView: View {
             previousScore = lastWeekScores.reduce(0) { $0 + $1.total } / lastWeekScores.count
         }
 
-        // Challenges
-        activeChallenges = await ChallengeStore.shared.activeChallenges()
+        // Challenges — refresh progress before reading so the diet plan
+        // card shows fresh today-totals on every tab visit.
+        await ChallengeStore.shared.updateProgress()
+        let allActive = await ChallengeStore.shared.activeChallenges()
+        // Pull diet plan out separately so the hero card can render it
+        // distinctly; remaining challenges go in the regular section.
+        dietPlan = allActive.first { $0.type == .dietPlan }
+        activeChallenges = allActive.filter { $0.type != .dietPlan }
 
         // Achievements
         let earned = await AchievementEngine.shared.allAchievements()
