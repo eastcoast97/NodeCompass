@@ -20,6 +20,7 @@ struct OnboardingView: View {
     @State private var currentStep = 0
     @State private var appeared = false
     @State private var selectedFocus: AppLearningStage.UserFocus = .everything
+    @State private var showGroqSetup = false
 
     private let totalSteps = 5
 
@@ -82,6 +83,11 @@ struct OnboardingView: View {
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.6)) { appeared = true }
+        }
+        .sheet(isPresented: $showGroqSetup, onDismiss: {
+            state.refreshAIState()
+        }) {
+            GeminiSetupView(isPresented: $showGroqSetup)
         }
     }
 
@@ -428,6 +434,19 @@ struct OnboardingView: View {
                         actionLabel: "Connect"
                     )
 
+                    DataSourceCard(
+                        icon: "sparkles", color: NC.teal,
+                        title: "AI Brain (Groq) — Free",
+                        subtitle: state.aiConfigured
+                            ? "Llama 3.3 active — auto-categorizes everything"
+                            : "Free key from Groq Console — categorizes transactions & parses receipts",
+                        isConnected: state.aiConfigured,
+                        isLoading: false,
+                        error: nil,
+                        action: { showGroqSetup = true },
+                        actionLabel: "Set Up"
+                    )
+
                     // Privacy footnote
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
@@ -440,6 +459,7 @@ struct OnboardingView: View {
                         }
                         PrivacyLine(icon: "lock.fill", text: "Plaid handles bank login — we never see passwords")
                         PrivacyLine(icon: "eye.slash.fill", text: "Gmail is read-only — only receipt emails")
+                        PrivacyLine(icon: "sparkles", text: "AI sees merchant names only — never amounts or accounts")
                         PrivacyLine(icon: "iphone", text: "All data stays on this device")
                     }
                     .padding(14)
@@ -1058,6 +1078,8 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var emailError: String?
     @Published var connectedEmail: String?
 
+    @Published var aiConfigured = false
+
     private var linkHandler: Handler?
     private let locationManager = CLLocationManager()
     private let healthStore = HKHealthStore()
@@ -1089,6 +1111,17 @@ class OnboardingState: NSObject, ObservableObject, CLLocationManagerDelegate {
         let emails = GmailService.shared.connectedEmails
         emailConnected = !emails.isEmpty
         connectedEmail = emails.first
+
+        Task { @MainActor in
+            aiConfigured = SmartCategorizer.shared.isConfigured
+        }
+    }
+
+    /// Refresh AI key state — called when GeminiSetupView dismisses so the
+    /// connect-data card flips to "Connected" if the user pasted a key.
+    @MainActor
+    func refreshAIState() {
+        aiConfigured = SmartCategorizer.shared.isConfigured
     }
 
     // MARK: - Location

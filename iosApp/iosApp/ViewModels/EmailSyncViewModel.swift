@@ -40,18 +40,22 @@ class EmailSyncViewModel: ObservableObject {
             // Restore the last signed-in user (SDK only restores one)
             let restoredEmail = await gmail.restorePreviousSignIn()
 
-            // Build account states from the persisted connected list
+            // Build account states from the persisted connected list.
+            //
+            // IMPORTANT: We optimistically mark all previously-connected
+            // accounts as authenticated. The Google Sign-In SDK only restores
+            // ONE account per cold launch, so checking gmail.isAuthenticated()
+            // here would falsely flag every secondary account as "needs
+            // re-authentication" on every app start. Real auth state is
+            // discovered when sync actually runs — handleSyncError flips the
+            // flag to false only if the request truly fails with .needsReAuth.
             let connectedEmails = gmail.connectedEmails
-            let emailReceiptCounts = store.transactions
-                .filter { $0.source == "EMAIL" }
-                .count
 
             for email in connectedEmails {
-                let isAuth = gmail.isAuthenticated(email: email)
                 let count = store.transactions.filter { $0.source == "EMAIL" }.count
                 accounts.append(GmailAccountState(
                     email: email,
-                    isAuthenticated: isAuth,
+                    isAuthenticated: true,
                     receiptsFound: connectedEmails.count == 1 ? count : 0
                 ))
             }
@@ -112,8 +116,14 @@ class EmailSyncViewModel: ObservableObject {
     }
 
     /// Sync all accounts that have valid auth sessions.
+    ///
+    /// Note: we only auto-sync accounts the SDK has actually restored in
+    /// memory. Calling sync on a non-restored account would fail with
+    /// .needsReAuth and incorrectly flip the UI to "needs re-authentication"
+    /// even though the user has a valid refresh token in keychain. Manual
+    /// "Sync" tap still works because reAuthenticate() handles the prompt.
     private func syncAllAuthenticated() async {
-        for account in accounts where account.isAuthenticated {
+        for account in accounts where account.isAuthenticated && gmail.isAuthenticated(email: account.email) {
             await incrementalSync(for: account.email)
         }
     }
