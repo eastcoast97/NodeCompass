@@ -122,26 +122,8 @@ struct OnboardingView: View {
     private var welcomeStep: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                // Compact logo
+                // Compact wordmark — app icon removed per design pass.
                 VStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(NC.teal.opacity(0.06))
-                            .frame(width: 100, height: 100)
-                            .blur(radius: 30)
-                            .opacity(appeared ? 1 : 0)
-
-                        Image("NodeCompassLogo")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .shadow(color: NC.teal.opacity(0.25), radius: 16, y: 3)
-                    }
-                    .scaleEffect(appeared ? 1 : 0.7)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.7), value: appeared)
-
                     VStack(spacing: 4) {
                         HStack(spacing: 2) {
                             Text("Node")
