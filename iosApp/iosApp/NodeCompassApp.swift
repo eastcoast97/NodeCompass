@@ -76,6 +76,7 @@ struct NodeCompassApp: App {
     @StateObject private var authService = AuthService()
     @StateObject private var transactionStore = TransactionStore.shared
     @State private var onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
+    @State private var hasSeenWelcomeTour = UserDefaults.standard.bool(forKey: "hasSeenWelcomeTour")
 
     init() {
         // Configure Google Sign-In with the client ID from Info.plist
@@ -181,11 +182,19 @@ struct NodeCompassApp: App {
                     LockScreenView(authService: authService)
                 } else if !onboardingComplete {
                     OnboardingView(isComplete: $onboardingComplete)
+                } else if !hasSeenWelcomeTour {
+                    WelcomeTourView(isComplete: $hasSeenWelcomeTour)
                 } else {
                     ContentView()
                         .environmentObject(transactionStore)
                         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("resetOnboarding"))) { _ in
                             onboardingComplete = false
+                            hasSeenWelcomeTour = false
+                            // Also reset per-tab coachmarks so re-running onboarding
+                            // gives a full fresh-user experience.
+                            for tab in ["wealth", "health", "mind", "you"] {
+                                UserDefaults.standard.removeObject(forKey: "tipSeen.\(tab)")
+                            }
                         }
                         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                             Task {

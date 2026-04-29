@@ -87,6 +87,7 @@
 		92C8C0F7FF856B8A544ABE53 /* CircleChallengeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748C20D02FA1B5B6F3B8965C /* CircleChallengeDetailView.swift */; };
 		9416A7BFE34CD052729D5FB3 /* DataExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5963D0FFF0E1877E18CE9BE9 /* DataExportView.swift */; };
 		95F0B6B6CA6CBC324CEC1BD1 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A411C8151B9626697390188 /* OnboardingView.swift */; };
+		96BF24D4A5DBA79CB2E6FF58 /* WelcomeTourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5121ED119F26138DD92DDAEB /* WelcomeTourView.swift */; };
 		9840498E6D5690FE2ED9F9B1 /* HabitTrackerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F167E133E305C4DFEEACB /* HabitTrackerView.swift */; };
 		9AD0AE23B0F1F68C6FB5C37B /* ProfileSetupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F27151AE0536DB520ED6E2 /* ProfileSetupSheet.swift */; };
 		9C00348318BDAE348EE597CC /* YouTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D62D19D83B3E262826BA7BD8 /* YouTabView.swift */; };
@@ -127,6 +128,7 @@
 		E04BDF60961932EED8648493 /* LocationGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9515B652DFD608407284B391 /* LocationGateView.swift */; };
 		E5ADA427543E73DA9B03F072 /* ReactionsSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED6549F0F8CD5F8A91DE55D /* ReactionsSync.swift */; };
 		EBA10633F15FEAE8A33D25C6 /* SmartCategorizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76860E48ED8E2F855A6B4DD5 /* SmartCategorizer.swift */; };
+		ED3DC07A98439157E64C2AC8 /* TabCoachmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1EB33C412BBBED3B1BFFDF /* TabCoachmark.swift */; };
 		EDA15DA0173943D9665122C6 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8286F5C87CCDECE6C30C3A24 /* EventStore.swift */; };
 		F30C981F1655B1028A6BD528 /* HabitAutoTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3890BC4F96CB2A1D7108D321 /* HabitAutoTracker.swift */; };
 		F4D4F30AC936DEE08DD7259A /* VoiceInputEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98088B6DC866301B12A70A74 /* VoiceInputEngine.swift */; };
@@ -175,6 +177,7 @@
 		47958E43A494FA8EE927F4A3 /* CategoryBreakdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryBreakdownView.swift; sourceTree = "<group>"; };
 		48F27151AE0536DB520ED6E2 /* ProfileSetupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupSheet.swift; sourceTree = "<group>"; };
 		4C8A52EC26689DE663890973 /* HealthAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthAnalyzer.swift; sourceTree = "<group>"; };
+		5121ED119F26138DD92DDAEB /* WelcomeTourView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeTourView.swift; sourceTree = "<group>"; };
 		51E0C2548B93274577920891 /* FoodAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAnalyzer.swift; sourceTree = "<group>"; };
 		5515DA495846DAFB581A444B /* LocationSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationSetupView.swift; sourceTree = "<group>"; };
 		565DFBF3625B3CE3B402F579 /* EmailSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailSyncView.swift; sourceTree = "<group>"; };
@@ -232,6 +235,7 @@
 		AF34756D6C79F4A69872FD0D /* LifeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeEvent.swift; sourceTree = "<group>"; };
 		B1A0E071A0A9F448C300FD10 /* LocalAuthentication.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LocalAuthentication.framework; path = System/Library/Frameworks/LocalAuthentication.framework; sourceTree = SDKROOT; };
 		B414DD003D19E2766B5A28EC /* Speech.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Speech.framework; path = System/Library/Frameworks/Speech.framework; sourceTree = SDKROOT; };
+		BD1EB33C412BBBED3B1BFFDF /* TabCoachmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabCoachmark.swift; sourceTree = "<group>"; };
 		BEC7FD643ACF9CF69EAB5039 /* VoiceFoodParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceFoodParser.swift; sourceTree = "<group>"; };
 		BF5C8ACF87E83EA460F47ABD /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
 		BFEABA041495200170418713 /* PlaceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceResolver.swift; sourceTree = "<group>"; };
@@ -369,11 +373,13 @@
 				E3B868E72036AFDE7AD024F3 /* ReactionPicker.swift */,
 				92DB86A1324A5D8F0E6E7BBF /* SettingsView.swift */,
 				2ACC958D8A710936FBF3E507 /* SubscriptionManagerView.swift */,
+				BD1EB33C412BBBED3B1BFFDF /* TabCoachmark.swift */,
 				2A8B881D8B36DC9C9655B895 /* TransactionDetailView.swift */,
 				07CF72C3660503AC381AFA96 /* TransactionListView.swift */,
 				897AE136252BF54060FE38C7 /* TrendChartsView.swift */,
 				AB5AF550ED8DA1804AF59669 /* VoiceInputView.swift */,
 				3CD8870008FF4203ACEA8038 /* WealthTabView.swift */,
+				5121ED119F26138DD92DDAEB /* WelcomeTourView.swift */,
 				D62D19D83B3E262826BA7BD8 /* YouTabView.swift */,
 			);
 			path = Views;
@@ -680,6 +686,7 @@
 				050F0CEB78564F11246008FC /* SubscriptionManagerView.swift in Sources */,
 				5E450D5BE99C1B18DF8EC915 /* SupabaseClient.swift in Sources */,
 				8FDF6030F497B56964CC3D85 /* SwiftEmailReceiptParser.swift in Sources */,
+				ED3DC07A98439157E64C2AC8 /* TabCoachmark.swift in Sources */,
 				CE53DDC7AC0B89524FAAFC6C /* TodayPulseEngine.swift in Sources */,
 				2F6237E4E4485FC255AC89C5 /* TransactionBridge.swift in Sources */,
 				A831425300E3E9BF2813F6BD /* TransactionDetailView.swift in Sources */,
@@ -694,6 +701,7 @@
 				55E55375CD8FF20CFA6416FF /* VoiceInputView.swift in Sources */,
 				2C4687E420F10EE72666B024 /* WealthTabView.swift in Sources */,
 				A9A2448019414843DC1EAB95 /* WeatherCorrelation.swift in Sources */,
+				96BF24D4A5DBA79CB2E6FF58 /* WelcomeTourView.swift in Sources */,
 				9C00348318BDAE348EE597CC /* YouTabView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

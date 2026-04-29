@@ -71,6 +71,15 @@ struct HealthTabView: View {
             .sheet(isPresented: $showHabitTracker) {
                 HabitTrackerView()
             }
+            .overlay(alignment: .top) {
+                TabCoachmark(
+                    id: "health",
+                    icon: "heart.text.square.fill",
+                    title: "Welcome to Health",
+                    body: "Tap a habit to mark it done — streaks build automatically. Mood and meals log inline. The rings show today at a glance.",
+                    color: .pink
+                )
+            }
         }
     }
 

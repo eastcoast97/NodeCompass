@@ -62,6 +62,15 @@ struct YouTabView: View {
             .background(NC.bgBase)
             .navigationTitle("You")
             .navigationBarTitleDisplayMode(.large)
+            .overlay(alignment: .top) {
+                TabCoachmark(
+                    id: "you",
+                    icon: "person.crop.circle.badge.plus",
+                    title: "Welcome to You",
+                    body: "Connect bank, email, or health data here. The more you connect, the smarter NodeCompass gets — every integration is optional.",
+                    color: NC.teal
+                )
+            }
             .onAppear { bankVM.checkServer() }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("BankConnected"))) { _ in
                 bankVM.checkServer()

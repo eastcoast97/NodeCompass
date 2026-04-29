@@ -63,6 +63,15 @@ struct MindTabView: View {
         .sheet(isPresented: $showAchievements) {
             AchievementsView()
         }
+        .overlay(alignment: .top) {
+            TabCoachmark(
+                id: "mind",
+                icon: "brain.head.profile",
+                title: "Welcome to Mind",
+                body: "Tap the AI Coach to ask anything about your patterns. Add a Challenge below — keep it solo or invite a Circle to compete.",
+                color: NC.mind
+            )
+        }
     }
 
     // MARK: - 1. Life Score Hero Card

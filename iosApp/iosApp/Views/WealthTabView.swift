@@ -110,6 +110,15 @@ struct WealthTabView: View {
                     }
                 }
             }
+            .overlay(alignment: .top) {
+                TabCoachmark(
+                    id: "wealth",
+                    icon: "lightbulb.fill",
+                    title: "Welcome to Wealth",
+                    body: "Tap the pills above — Budgets to set monthly limits, Subscriptions to find ghost charges, Goals to track savings targets.",
+                    color: NC.teal
+                )
+            }
             .sheet(isPresented: $showBudgets) { BudgetView() }
             .sheet(isPresented: $showSubscriptions) { SubscriptionManagerView() }
             .sheet(isPresented: $showSavings) { GoalsView() }
