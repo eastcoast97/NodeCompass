@@ -48,6 +48,7 @@ struct DashboardView: View {
     @State private var showCoach = false
     @State private var showHeatmap = false
     @State private var showExportSheet = false
+    @State private var showCircles = false
     @State private var pendingEntryToComplete: FoodStore.FoodLogEntry?
     @State private var nudges: [NudgeEngine.Nudge] = []
     @State private var todayPulse: TodayPulseEngine.TodayPulse?
@@ -214,34 +215,17 @@ struct DashboardView: View {
                     // grid. Items are gated by learning stage so early users
                     // don't see features that aren't useful yet.
                     Menu {
-                        Button { Haptic.light(); showMood = true } label: {
-                            Label("Log Mood", systemImage: "face.smiling")
+                        Button { Haptic.light(); showCircles = true } label: {
+                            Label("Circles", systemImage: "person.3.sequence.fill")
                         }
-
-                        if learningStage.allowsLifeCoach {
-                            Button { Haptic.light(); showCoach = true } label: {
-                                Label("Ask Coach", systemImage: "brain.head.profile")
-                            }
-                        }
-
-                        if learningStage.allowsGoals {
-                            Button { Haptic.light(); showGoals = true } label: {
-                                Label("Goals", systemImage: "target")
-                            }
-                            Button { Haptic.light(); showAchievements = true } label: {
-                                Label("Achievements", systemImage: "trophy.fill")
-                            }
-                        }
-
-                        Divider()
-
                         Button { Haptic.light(); showExportSheet = true } label: {
                             Label("Export Data", systemImage: "square.and.arrow.up")
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "person.3.fill")
                             .font(.title3)
-                            .accessibilityLabel("More")
+                            .foregroundStyle(NC.teal)
+                            .accessibilityLabel("Circles and Data")
                     }
                 }
             }
@@ -273,6 +257,9 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showExportSheet) {
             DataExportView()
+        }
+        .sheet(isPresented: $showCircles) {
+            CirclesView()
         }
         .sheet(isPresented: $showGoals) {
             GoalsView()
