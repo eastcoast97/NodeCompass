@@ -7,6 +7,8 @@ struct FoodLogView: View {
     @StateObject private var voice = VoiceFoodParser()
     @Environment(\.dismiss) private var dismiss
     @State private var showVoiceSheet = false
+    @State private var showBarcodeScanner = false
+    @State private var pendingScannedProduct: BarcodeProduct?
 
     /// Default init — fresh food log.
     init() {
@@ -49,8 +51,8 @@ struct FoodLogView: View {
 
                     mealTypePicker
 
-                    // Voice input button
-                    voiceInputButton
+                    // Quick input row: Voice + Barcode side-by-side
+                    quickInputRow
 
                     if !vm.stapleSuggestions.isEmpty {
                         stapleSuggestionsSection
@@ -87,36 +89,75 @@ struct FoodLogView: View {
                 }
                 .presentationDetents([.medium])
             }
+            .sheet(isPresented: $showBarcodeScanner) {
+                BarcodeScannerSheet { product in
+                    pendingScannedProduct = product
+                }
+            }
+            .sheet(item: $pendingScannedProduct) { product in
+                ScannedProductSheet(product: product) { item in
+                    vm.items.append(item)
+                    pendingScannedProduct = nil
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
         }
     }
 
     // MARK: - Voice Input Button
 
-    private var voiceInputButton: some View {
-        Button { showVoiceSheet = true } label: {
+    private var quickInputRow: some View {
+        HStack(spacing: 10) {
+            quickInputTile(
+                icon: "mic.fill",
+                title: "Voice",
+                subtitle: "Say what you ate",
+                color: NC.teal
+            ) {
+                showVoiceSheet = true
+            }
+
+            quickInputTile(
+                icon: "barcode.viewfinder",
+                title: "Scan",
+                subtitle: "Packaged food",
+                color: .orange
+            ) {
+                showBarcodeScanner = true
+            }
+        }
+    }
+
+    private func quickInputTile(
+        icon: String,
+        title: String,
+        subtitle: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: "mic.fill")
+                Image(systemName: icon)
                     .font(.title3)
                     .foregroundStyle(.white)
                     .frame(width: 36, height: 36)
-                    .background(NC.teal, in: Circle())
+                    .background(color, in: Circle())
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Voice Input")
+                    Text(title)
                         .font(.subheadline.bold())
-                    Text("Say what you ate — \"2 rotis and chicken 200g\"")
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                Spacer(minLength: 0)
             }
             .padding(12)
+            .frame(maxWidth: .infinity)
             .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
         }
         .buttonStyle(.plain)
@@ -721,6 +762,176 @@ class FoodLogViewModel: ObservableObject {
         )
 
         Task { await FoodStore.shared.addEntry(entry) }
+    }
+}
+
+// MARK: - Scanned Product Sheet
+//
+// Confirmation step after barcode lookup succeeds. User sees what we
+// resolved (brand · name), adjusts serving size in grams (default = the
+// packaging-declared serving, or 100g), sees calculated calories/macros,
+// and confirms to add as a FoodItem. If nutrition data is missing,
+// falls back to letting them save just the name.
+
+struct ScannedProductSheet: View {
+    let product: BarcodeProduct
+    let onConfirm: (FoodItem) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var grams: Double
+
+    init(product: BarcodeProduct, onConfirm: @escaping (FoodItem) -> Void) {
+        self.product = product
+        self.onConfirm = onConfirm
+        _grams = State(initialValue: product.servingGrams)
+    }
+
+    private var calories: Int? { product.calories(forGrams: grams) }
+    private var macros: Macros? { product.macros(forGrams: grams) }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 18) {
+                    // Header
+                    VStack(spacing: 6) {
+                        Image(systemName: "barcode.viewfinder")
+                            .font(.system(size: 36))
+                            .foregroundStyle(.orange)
+                        Text(product.displayName)
+                            .font(.title3.bold())
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        Text("Barcode \(product.barcode)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.top, 12)
+
+                    // Serving size adjuster
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Serving Size")
+                                .font(.subheadline.bold())
+                            Spacer()
+                            Text("\(Int(grams))g")
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(NC.teal)
+                        }
+
+                        Slider(value: $grams, in: 10...500, step: 5)
+                            .tint(NC.teal)
+
+                        HStack(spacing: 8) {
+                            ForEach([Int(product.servingGrams), 50, 100, 200], id: \.self) { preset in
+                                Button {
+                                    Haptic.selection()
+                                    grams = Double(preset)
+                                } label: {
+                                    Text("\(preset)g")
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            Int(grams) == preset
+                                                ? NC.teal.opacity(0.18)
+                                                : Color(.systemGray6),
+                                            in: Capsule()
+                                        )
+                                        .foregroundStyle(Int(grams) == preset ? NC.teal : .secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+
+                    // Nutrition card
+                    if let calories {
+                        VStack(spacing: 10) {
+                            HStack {
+                                Image(systemName: "flame.fill")
+                                    .foregroundStyle(.orange)
+                                Text("Calories")
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text("\(calories) kcal")
+                                    .font(.title3.bold().monospacedDigit())
+                                    .foregroundStyle(.orange)
+                            }
+
+                            if let macros {
+                                Divider()
+                                HStack(spacing: 0) {
+                                    macroPill("P", value: macros.protein, color: .red)
+                                    macroPill("C", value: macros.carbs, color: .yellow)
+                                    macroPill("F", value: macros.fat, color: .indigo)
+                                    if macros.fiber > 0 {
+                                        macroPill("Fb", value: macros.fiber, color: .green)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(14)
+                        .background(.background, in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                    } else {
+                        // Missing nutrition info — caller can still save the name.
+                        HStack(spacing: 10) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(.orange)
+                            Text("OpenFoodFacts has no calorie data for this product. You can still log the name and edit the amount later.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(12)
+                        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: NC.cardRadius))
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Confirm Item")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        onConfirm(buildItem())
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundStyle(NC.teal)
+                }
+            }
+        }
+    }
+
+    private func macroPill(_ label: String, value: Double, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text("\(Int(round(value)))g")
+                .font(.subheadline.bold().monospacedDigit())
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func buildItem() -> FoodItem {
+        FoodItem(
+            name: product.displayName,
+            amount: grams,
+            unit: .grams,
+            caloriesEstimate: product.calories(forGrams: grams),
+            macros: product.macros(forGrams: grams),
+            isHomemade: false
+        )
     }
 }
 

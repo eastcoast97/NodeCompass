@@ -62,6 +62,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>NodeCompass uses the camera to scan product barcodes and auto-fill calories and macros from packaged food.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>NodeCompass uses Face ID to protect your financial data.</string>
 	<key>NSHealthShareUsageDescription</key>

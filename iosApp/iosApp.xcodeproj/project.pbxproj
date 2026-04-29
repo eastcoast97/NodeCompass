@@ -132,7 +132,9 @@
 		EDA15DA0173943D9665122C6 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8286F5C87CCDECE6C30C3A24 /* EventStore.swift */; };
 		F30C981F1655B1028A6BD528 /* HabitAutoTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3890BC4F96CB2A1D7108D321 /* HabitAutoTracker.swift */; };
 		F4D4F30AC936DEE08DD7259A /* VoiceInputEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98088B6DC866301B12A70A74 /* VoiceInputEngine.swift */; };
+		F72A21E8722EB63D79D20979 /* OpenFoodFactsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45623D7B6B85490CB6866944 /* OpenFoodFactsService.swift */; };
 		FB39938CC4E2E7B734725E8C /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F99A6E0E5C91E3FB013D695 /* KeychainService.swift */; };
+		FC5F4631CCEB4E9294CB2411 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA40ADE622B6FE68CF512C2 /* BarcodeScannerView.swift */; };
 		FE396CDCB91CAED3E7D0276E /* ReactionInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5590137BA28604CA4661F8A /* ReactionInbox.swift */; };
 /* End PBXBuildFile section */
 
@@ -170,8 +172,10 @@
 		3CA9D4CE3F20019B2118E57D /* NotificationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationEngine.swift; sourceTree = "<group>"; };
 		3CD8870008FF4203ACEA8038 /* WealthTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthTabView.swift; sourceTree = "<group>"; };
 		3E3A8BB9B7B9789724748E15 /* SwiftEmailReceiptParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftEmailReceiptParser.swift; sourceTree = "<group>"; };
+		3FA40ADE622B6FE68CF512C2 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 		406949BDE05A97C338FFFAD2 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		443162E1767EFCE1E3A33DF8 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		45623D7B6B85490CB6866944 /* OpenFoodFactsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenFoodFactsService.swift; sourceTree = "<group>"; };
 		45988E9BB680994CFBD1C0D8 /* UserIdentityProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIdentityProfile.swift; sourceTree = "<group>"; };
 		46F1B5247E0CC89CE4187B6A /* NutritionDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionDatabase.swift; sourceTree = "<group>"; };
 		47958E43A494FA8EE927F4A3 /* CategoryBreakdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryBreakdownView.swift; sourceTree = "<group>"; };
@@ -339,6 +343,7 @@
 			children = (
 				8E158AD4F1F8E5515D1DF974 /* AchievementsView.swift */,
 				96E034857217E3051EED9D5E /* BankConnectionView.swift */,
+				3FA40ADE622B6FE68CF512C2 /* BarcodeScannerView.swift */,
 				C9125FD7056341844726926F /* BudgetView.swift */,
 				47958E43A494FA8EE927F4A3 /* CategoryBreakdownView.swift */,
 				7CAD977754992CB9B37FA27B /* ChallengeShareCard.swift */,
@@ -478,6 +483,7 @@
 				EC82BE74DFE9D7EF2258721D /* GroqService.swift */,
 				0F99A6E0E5C91E3FB013D695 /* KeychainService.swift */,
 				361F214944A93CF2BBA19220 /* MerchantNameResolver.swift */,
+				45623D7B6B85490CB6866944 /* OpenFoodFactsService.swift */,
 				334C63DA2F79650F4421D505 /* PlaidService.swift */,
 				22DD6770FA7AD204286F207C /* PushNotificationService.swift */,
 				9ED6549F0F8CD5F8A91DE55D /* ReactionsSync.swift */,
@@ -595,6 +601,7 @@
 				A57E122DC1671883D36B8287 /* AuthService.swift in Sources */,
 				9DE138C8639B6CE3850577EE /* BackgroundScheduler.swift in Sources */,
 				00AC98DEA28489DD6908AF55 /* BankConnectionView.swift in Sources */,
+				FC5F4631CCEB4E9294CB2411 /* BarcodeScannerView.swift in Sources */,
 				D53660DD456657468777D2BD /* BillCalendarEngine.swift in Sources */,
 				4161B8720EC599811D3C63D3 /* BudgetStore.swift in Sources */,
 				D8B88039292AC912E5BFEA37 /* BudgetView.swift in Sources */,
@@ -664,6 +671,7 @@
 				C6AF5718208DC4149629764E /* NudgeEngine.swift in Sources */,
 				2548D31B2FFD8C3D1E1EEFBF /* NutritionDatabase.swift in Sources */,
 				95F0B6B6CA6CBC324CEC1BD1 /* OnboardingView.swift in Sources */,
+				F72A21E8722EB63D79D20979 /* OpenFoodFactsService.swift in Sources */,
 				76C7BC890898CBF71DC7104E /* PatternEngine.swift in Sources */,
 				04B23479566DDDECB4E46782 /* PersonalInfoStore.swift in Sources */,
 				1A4B62321B8BD744C2B936F8 /* PlaceIntelligence.swift in Sources */,

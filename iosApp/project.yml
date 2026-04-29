@@ -62,6 +62,7 @@ targets:
               - com.googleusercontent.apps.125462112839-nq5tmt5gasjbkc4r7uevlr31oi3rrt03
         NSSpeechRecognitionUsageDescription: "NodeCompass uses speech recognition to let you log meals by voice. All processing happens on-device."
         NSMicrophoneUsageDescription: "NodeCompass needs microphone access for voice-based food logging."
+        NSCameraUsageDescription: "NodeCompass uses the camera to scan product barcodes and auto-fill calories and macros from packaged food."
         NSHealthShareUsageDescription: "NodeCompass reads your health data (steps, workouts, sleep, heart rate) to connect fitness with spending patterns and surface smart insights. All processing is on-device."
         NSFaceIDUsageDescription: "NodeCompass uses Face ID to protect your financial data."
         NSLocationWhenInUseUsageDescription: "NodeCompass uses your location to connect spending with places you visit — like restaurants, gyms, and stores."
