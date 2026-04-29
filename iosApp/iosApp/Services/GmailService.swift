@@ -4,18 +4,35 @@ import GoogleSignIn
 /// Manages multiple Gmail accounts for receipt fetching.
 /// Each account has its own sync state (historyId, processedIds).
 ///
-/// SDK constraint: `GIDSignIn` only holds ONE "currentUser" at a time.
-/// On app restart, only the last signed-in account auto-restores.
-/// Other accounts show "Re-authenticate" until the user taps to sign in again.
+/// Multi-account strategy: GoogleSignIn-iOS's `GIDSignIn` only auto-restores
+/// ONE user across cold launches (the most recent). To support multiple
+/// concurrent Gmail accounts, we persist each account's refresh token in
+/// Keychain at sign-in time and exchange it for a fresh access token via
+/// Google's OAuth endpoint on demand. This bypasses the SDK's single-user
+/// restriction entirely — non-primary accounts sync silently like the
+/// primary one, no manual re-auth tap required.
 class GmailService {
     static let shared = GmailService()
 
     private let gmailReadonlyScope = "https://www.googleapis.com/auth/gmail.readonly"
     private let gmailBaseURL = "https://gmail.googleapis.com/gmail/v1/users/me"
 
-    /// In-memory map of authenticated users, keyed by email.
-    /// Populated on sign-in and restore. Lost on app restart except for the last user.
+    /// Google OAuth client ID — pulled from Info.plist (the iOS reverse-DNS
+    /// form Google issues for native apps). Required for the manual refresh
+    /// flow that powers non-primary accounts.
+    private var oauthClientID: String? {
+        Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String
+    }
+
+    /// In-memory map of GIDGoogleUser objects, keyed by email. Populated on
+    /// sign-in and SDK auto-restore. The SDK only restores one user across
+    /// cold launches — the manual refresh path below covers the rest.
     private var authenticatedUsers: [String: GIDGoogleUser] = [:]
+
+    /// In-memory cache of access tokens fetched via the manual refresh path.
+    /// Each entry has a token + expiry; we refresh just-in-time when expired.
+    /// Resets on cold launch, which is fine — refresh tokens are durable.
+    private var manualAccessTokens: [String: (token: String, expiry: Date)] = [:]
 
     /// List of connected account emails (persisted).
     var connectedEmails: [String] {
@@ -24,6 +41,65 @@ class GmailService {
     }
 
     private init() {}
+
+    // MARK: - Refresh Token Persistence (Keychain)
+
+    private func keychainKey(for email: String) -> String {
+        "com.nodecompass.gmail.refresh.\(email.lowercased())"
+    }
+
+    /// Persist a refresh token for a given email account. Called after every
+    /// successful sign-in or re-auth so we can silently get fresh access
+    /// tokens for that account on future cold launches.
+    private func saveRefreshToken(_ token: String, for email: String) {
+        let key = keychainKey(for: email)
+        let data = Data(token.utf8)
+        let attributes: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrAccount: key,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlock,
+            kSecValueData: data
+        ]
+        // Idempotent: delete any existing entry first.
+        SecItemDelete([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrAccount: key
+        ] as CFDictionary)
+        SecItemAdd(attributes as CFDictionary, nil)
+    }
+
+    private func loadRefreshToken(for email: String) -> String? {
+        let key = keychainKey(for: email)
+        var result: AnyObject?
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrAccount: key,
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne
+        ]
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private func deleteRefreshToken(for email: String) {
+        SecItemDelete([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrAccount: keychainKey(for: email)
+        ] as CFDictionary)
+    }
+
+    /// After a successful GIDSignIn flow, capture both the in-memory user
+    /// AND the durable refresh token. The refresh token survives cold
+    /// launches via Keychain and powers silent token exchange below.
+    private func recordSignedInUser(_ user: GIDGoogleUser, email: String) {
+        authenticatedUsers[email] = user
+        if let refresh = user.refreshToken.tokenString as String?, !refresh.isEmpty {
+            saveRefreshToken(refresh, for: email)
+        }
+        // Drop any stale manual token cache — the new in-memory user is fresher.
+        manualAccessTokens.removeValue(forKey: email)
+    }
 
     // MARK: - Authentication
 
@@ -44,7 +120,7 @@ class GmailService {
             throw GmailServiceError.noAccessToken
         }
 
-        authenticatedUsers[email] = user
+        recordSignedInUser(user, email: email)
 
         // Add to connected list if not already there
         if !connectedEmails.contains(email) {
@@ -67,7 +143,7 @@ class GmailService {
 
         let user = result.user
         let actualEmail = user.profile?.email ?? email
-        authenticatedUsers[actualEmail] = user
+        recordSignedInUser(user, email: actualEmail)
     }
 
     /// Restore the last signed-in user on app launch.
@@ -78,16 +154,21 @@ class GmailService {
             let grantedScopes = user.grantedScopes ?? []
             guard grantedScopes.contains(gmailReadonlyScope) else { return nil }
             guard let email = user.profile?.email else { return nil }
-            authenticatedUsers[email] = user
+            // Record into in-memory map AND refresh keychain copy of refresh
+            // token in case it rotated since last save.
+            recordSignedInUser(user, email: email)
             return email
         } catch {
             return nil
         }
     }
 
-    /// Check if we have a valid in-memory auth session for an account.
+    /// Whether we can sync `email` without showing a user-facing OAuth flow.
+    /// True if either the SDK has the user in memory OR we have a keychain
+    /// refresh token we can silently exchange.
     func isAuthenticated(email: String) -> Bool {
-        authenticatedUsers[email] != nil
+        if authenticatedUsers[email] != nil { return true }
+        return loadRefreshToken(for: email) != nil
     }
 
     /// Sign out and remove a specific account.
@@ -95,9 +176,11 @@ class GmailService {
         authenticatedUsers.removeValue(forKey: email)
         connectedEmails.removeAll { $0 == email }
 
-        // Clear per-account sync state
+        // Clear per-account sync state + persisted refresh token + token cache.
         UserDefaults.standard.removeObject(forKey: historyKey(for: email))
         UserDefaults.standard.removeObject(forKey: processedKey(for: email))
+        deleteRefreshToken(for: email)
+        manualAccessTokens.removeValue(forKey: email)
 
         // If this was the GIDSignIn current user, sign out from SDK too
         if GIDSignIn.sharedInstance.currentUser?.profile?.email == email {
@@ -110,7 +193,9 @@ class GmailService {
         for email in connectedEmails {
             UserDefaults.standard.removeObject(forKey: historyKey(for: email))
             UserDefaults.standard.removeObject(forKey: processedKey(for: email))
+            deleteRefreshToken(for: email)
         }
+        manualAccessTokens.removeAll()
         authenticatedUsers.removeAll()
         connectedEmails = []
         GIDSignIn.sharedInstance.signOut()
@@ -259,17 +344,90 @@ class GmailService {
     }
 
     private func getValidAccessToken(for email: String) async throws -> String {
-        guard let user = authenticatedUsers[email] else {
-            throw GmailServiceError.needsReAuth(email: email)
+        // Fast path: SDK has the user in memory (always true for the one
+        // account auto-restored at launch, plus anything signed in this
+        // session). Use the SDK's normal refresh.
+        if let user = authenticatedUsers[email] {
+            try await user.refreshTokensIfNeeded()
+            guard let token = user.accessToken.tokenString as String? else {
+                throw GmailServiceError.noAccessToken
+            }
+            return token
         }
 
-        try await user.refreshTokensIfNeeded()
+        // Silent path: SDK doesn't have this user (it's a non-primary
+        // account on a fresh launch). Exchange the persisted refresh token
+        // for a new access token via Google's OAuth endpoint.
+        return try await fetchAccessTokenViaRefreshToken(for: email)
+    }
 
-        guard let token = user.accessToken.tokenString as String? else {
+    /// Manual OAuth refresh-token exchange. Used for accounts the SDK didn't
+    /// auto-restore on cold launch. Caches the resulting access token in
+    /// memory until just before its expiry to avoid repeated network round
+    /// trips. If the refresh token has been revoked (rare — usually only
+    /// after 6 months of inactivity or explicit revocation), throws
+    /// `.needsReAuth` so the caller can prompt the user to sign in again.
+    private func fetchAccessTokenViaRefreshToken(for email: String) async throws -> String {
+        // Cache hit?
+        if let cached = manualAccessTokens[email],
+           cached.expiry > Date().addingTimeInterval(60) {   // 1 min safety margin
+            return cached.token
+        }
+
+        guard let refreshToken = loadRefreshToken(for: email) else {
+            throw GmailServiceError.needsReAuth(email: email)
+        }
+        guard let clientID = oauthClientID else {
             throw GmailServiceError.noAccessToken
         }
 
-        return token
+        var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        // Native iOS apps are public OAuth clients — no client_secret. Google's
+        // OAuth endpoint accepts client_id + refresh_token alone for these.
+        let body = [
+            "client_id":     clientID,
+            "refresh_token": refreshToken,
+            "grant_type":    "refresh_token"
+        ]
+        let bodyString = body
+            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")" }
+            .joined(separator: "&")
+        request.httpBody = bodyString.data(using: .utf8)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw GmailServiceError.noAccessToken
+        }
+
+        // 400/401 with "invalid_grant" means the refresh token itself is dead
+        // (user revoked, or 6+ months inactive). Drop it and require a fresh
+        // sign-in so we don't keep retrying a doomed exchange.
+        if http.statusCode == 400 || http.statusCode == 401 {
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errStr = json["error"] as? String,
+               errStr == "invalid_grant" {
+                deleteRefreshToken(for: email)
+                throw GmailServiceError.needsReAuth(email: email)
+            }
+        }
+
+        guard http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let accessToken = json["access_token"] as? String else {
+            throw GmailServiceError.noAccessToken
+        }
+
+        // Google returns expires_in seconds (typically 3599). Cache slightly
+        // shy of that to give the safety margin some room.
+        let expiresIn = (json["expires_in"] as? Double) ?? 3500
+        manualAccessTokens[email] = (
+            token: accessToken,
+            expiry: Date().addingTimeInterval(expiresIn)
+        )
+        return accessToken
     }
 
     private func updateHistoryId(for email: String, token: String) async {
