@@ -14,6 +14,7 @@ struct MindTabView: View {
     @State private var showCoach = false
     @State private var showChallenges = false
     @State private var showAchievements = false
+    @State private var showCircles = false
     @State private var isLoading = true
 
     // MARK: - Mind pillar accent
@@ -40,6 +41,8 @@ struct MindTabView: View {
                             .sectionAppear(delay: 0.1)
                         challengesSection
                             .sectionAppear(delay: 0.15)
+                        circlesCard
+                            .sectionAppear(delay: 0.2)
                         achievementsSection
                             .sectionAppear(delay: 0.25)
                         insightsCarousel
@@ -62,6 +65,9 @@ struct MindTabView: View {
         }
         .sheet(isPresented: $showAchievements) {
             AchievementsView()
+        }
+        .sheet(isPresented: $showCircles) {
+            CirclesView()
         }
         .overlay(alignment: .top) {
             TabCoachmark(
@@ -342,6 +348,37 @@ struct MindTabView: View {
         }
         .padding(12)
         .background(NC.bgElevated, in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - 3.5 Circles (compete with friends)
+
+    private var circlesCard: some View {
+        Button {
+            Haptic.light()
+            showCircles = true
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "person.3.sequence.fill")
+                        .font(.callout)
+                        .foregroundStyle(NC.teal)
+                    Text("Circles")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                Text("Challenge friends in private groups. Share challenges, send reactions, see each other's progress.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .buttonStyle(.plain)
+        .card()
     }
 
     // MARK: - 4. Recent Achievements
