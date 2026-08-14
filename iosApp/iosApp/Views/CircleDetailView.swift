@@ -183,6 +183,11 @@ struct CircleDetailView: View {
             async let challengesFetch = CoopChallengeSync.shared.challenges(for: circle.id)
             members = try await membersFetch
             circleChallenges = (try? await challengesFetch) ?? []
+            // Mirror anything new into the local store while we're here, so a
+            // challenge a friend shared shows up on the Today tab too — not
+            // just in this list. Posts circleChallengesDidChange when it adds
+            // something, which the Dashboard observes.
+            await ChallengeStore.shared.syncCircleChallenges()
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -249,6 +249,17 @@ struct DashboardView: View {
             }
         }
         .onChange(of: store.transactions.count) { vm.load() }
+        // A circle challenge shared by a friend can land while the Today tab
+        // is already on screen — onAppear won't fire again in a TabView, so
+        // without this the dashboard stayed stale until a manual refresh.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSNotification.Name("circleChallengesDidChange"))
+        ) { _ in
+            Task {
+                await ChallengeStore.shared.updateProgress()
+                self.activeChallenges = await ChallengeStore.shared.activeChallenges()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("openFoodLog"))) { _ in
             showFoodLog = true
         }

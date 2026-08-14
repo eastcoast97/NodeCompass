@@ -354,6 +354,7 @@ actor ChallengeStore {
         }
 
         var fallbackAdded = false
+        var mirroredCount = 0
         for circleChallenge in remote {
             let circleChallengeId = circleChallenge.id.uuidString.lowercased()
             // User explicitly deleted this challenge from their view —
@@ -375,7 +376,18 @@ actor ChallengeStore {
 
             if let catalogId = circleChallenge.catalogId,
                let entry = ChallengeCatalog.entry(id: catalogId) {
-                _ = startFromCatalog(entry, scope: scope)
+                // Carry the server's window through so every member's mirror
+                // runs on the same dates. Previously this re-derived dates
+                // from the catalog's durationDays starting "now", so a member
+                // who joined late had a challenge ending on a different day
+                // than the creator's.
+                _ = startFromCatalog(
+                    entry,
+                    scope: scope,
+                    startDate: circleChallenge.startsAt,
+                    endDate: circleChallenge.endsAt
+                )
+                mirroredCount += 1
             } else {
                 let pillar = Pillar(rawValue: circleChallenge.pillar) ?? .cross
                 let challenge = Challenge(
@@ -397,6 +409,7 @@ actor ChallengeStore {
                 )
                 challenges.append(challenge)
                 fallbackAdded = true
+                mirroredCount += 1
             }
 
             // Idempotent server-side join so subsequent score uploads succeed.
@@ -407,6 +420,21 @@ actor ChallengeStore {
 
         if fallbackAdded {
             saveToDisk()
+        }
+
+        // Tell any live view that its cached challenge array is stale. The
+        // Dashboard only ran this sync on first appear / app foreground, so a
+        // challenge a friend shared while the app was open never reached the
+        // Today tab — the user saw it in Circle Detail (which queries Supabase
+        // directly) but not on their dashboard until they force-quit or
+        // pull-to-refreshed. Views observing this reload immediately.
+        if mirroredCount > 0 {
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("circleChallengesDidChange"),
+                    object: nil
+                )
+            }
         }
     }
 
@@ -493,9 +521,16 @@ actor ChallengeStore {
     /// the same catalog entry — prevents accidental duplicates when the user
     /// taps Start twice.
     @discardableResult
+    /// - Parameters:
+    ///   - startDate/endDate: when mirroring a circle challenge created by
+    ///     someone else, pass the server's dates so every member's copy runs
+    ///     on the same window. Omit for solo starts — the catalog's
+    ///     `durationDays` is then applied from now.
     func startFromCatalog(
         _ entry: ChallengeCatalog.Entry,
-        scope: Scope = .solo
+        scope: Scope = .solo,
+        startDate: Date? = nil,
+        endDate: Date? = nil
     ) -> Challenge? {
         let now = Date()
         // Only block duplicate catalog starts within the SAME scope. A user
@@ -507,14 +542,17 @@ actor ChallengeStore {
         }
         guard !hasActive else { return nil }
 
-        let end = Calendar.current.date(byAdding: .day, value: entry.durationDays, to: now) ?? now
+        let start = startDate ?? now
+        let end = endDate
+            ?? Calendar.current.date(byAdding: .day, value: entry.durationDays, to: start)
+            ?? start
         let challenge = Challenge(
             id: UUID().uuidString,
             title: entry.title,
             type: entry.type,
             targetValue: entry.targetValue,
             currentValue: 0,
-            startDate: now,
+            startDate: start,
             endDate: end,
             isCompleted: false,
             completedAt: nil,

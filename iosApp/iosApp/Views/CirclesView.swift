@@ -90,6 +90,9 @@ struct CirclesView: View {
                 await ReactionsSync.shared.startListening()
                 ReactionsSync.shared.startPolling()
                 _ = try? await ReactionsSync.shared.refreshInbox()
+                // Pull any circle challenges shared since the app launched
+                // into the local store so they reach the Today tab as well.
+                await ChallengeStore.shared.syncCircleChallenges()
             }
             .refreshable { await vm.load() }
             .sheet(isPresented: $showCreate, onDismiss: { Task { await vm.load() } }) {
