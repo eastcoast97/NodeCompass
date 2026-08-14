@@ -151,6 +151,21 @@ final class CoopChallengeSync {
         }
     }
 
+    /// Delete a circle challenge for the entire circle. The server-side RPC
+    /// validates `created_by = auth.uid()` so only the creator can delete —
+    /// participant rows cascade off automatically.
+    func deleteCircleChallenge(challengeId: UUID) async throws {
+        _ = try await ensureSession()
+        struct Args: Encodable { let p_challenge_id: UUID }
+        do {
+            try await NCBackend.shared
+                .rpc("delete_circle_challenge", params: Args(p_challenge_id: challengeId))
+                .execute()
+        } catch {
+            throw mapError(error)
+        }
+    }
+
     // MARK: - Score upload
 
     /// Push the caller's current value for a challenge.

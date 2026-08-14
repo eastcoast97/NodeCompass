@@ -1001,7 +1001,8 @@ struct DashboardView: View {
         self.activeSubCount = subs.filter(\.isActive).count
         self.subMonthlyTotal = await SubscriptionManager.shared.monthlyTotal()
 
-        // Active challenges — refresh progress, then load
+        // Active challenges — pull in circle-shared challenges, refresh progress, then load
+        await ChallengeStore.shared.syncCircleChallenges()
         await ChallengeStore.shared.updateProgress()
         self.activeChallenges = await ChallengeStore.shared.activeChallenges()
 

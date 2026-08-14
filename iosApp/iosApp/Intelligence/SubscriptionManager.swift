@@ -79,7 +79,13 @@ actor SubscriptionManager {
         }
 
         // All non-credit transactions (handles "DEBIT", "debit", "Debit", etc.)
-        let debits = transactions.filter { $0.type.lowercased() != "credit" }
+        // Also strip out credit card / loan payments and transfers — those
+        // are recurring monthly debits that pattern-match subscriptions but
+        // aren't actually subscriptions.
+        let debits = transactions.filter {
+            $0.type.lowercased() != "credit"
+            && !isCreditCardOrLoanPayment(merchant: $0.merchant, category: $0.category)
+        }
 
         // Group by merchant (aggressively normalized)
         var byMerchant: [String: [StoredTransaction]] = [:]
@@ -145,6 +151,8 @@ actor SubscriptionManager {
 
         for ghost in ghosts {
             let normalizedKey = normalizeMerchant(ghost.merchant)
+            // Skip credit card / loan payments and transfers.
+            if isCreditCardOrLoanPayment(merchant: ghost.merchant, category: nil) { continue }
             // Skip if we already detected this merchant via Path 1
             let alreadyDetected = detected.contains { normalizeMerchant($0.merchant) == normalizedKey }
             let alreadyTracked = subscriptions.contains { normalizeMerchant($0.merchant) == normalizedKey }
@@ -174,9 +182,73 @@ actor SubscriptionManager {
 
         // Merge and persist
         mergeDetected(detected)
+
+        // Cleanup pass: drop any previously-saved subscriptions that match the
+        // deny-list. Catches false positives from earlier app versions
+        // before this filter existed (Capital One, Amex, loan payments, etc.).
+        subscriptions.removeAll { isCreditCardOrLoanPayment(merchant: $0.merchant, category: $0.category) }
+
         saveToDisk()
 
         return subscriptions.filter(\.isActive)
+    }
+
+    /// Returns true for merchants/categories that look like credit card
+    /// payments, loan payments, or transfers — none of which should be
+    /// surfaced as subscriptions even though they recur monthly with similar
+    /// amounts. Matched against issuer brands (Capital One, Amex, Chase, etc.)
+    /// and Plaid-style categories that flag debt servicing or transfers.
+    private func isCreditCardOrLoanPayment(merchant: String, category: String?) -> Bool {
+        let m = merchant.lowercased()
+
+        // Common card issuer / lender brand keywords. Substring match so
+        // variants like "AMEX EPAYMENT", "CAPITAL ONE CRCARDPMT" still hit.
+        let issuerKeywords = [
+            "capital one", "capitalone",
+            "american express", "amex",
+            "chase",
+            "discover",
+            "citi", "citibank",
+            "bank of america", "bofa", "boa ",
+            "wells fargo", "wellsfargo",
+            "us bank", "usbank",
+            "barclays",
+            "synchrony",
+            "bilt",
+            "apple card",
+            "venmo credit",
+            "robinhood gold"
+        ]
+        if issuerKeywords.contains(where: { m.contains($0) }) { return true }
+
+        // Generic payment-pattern keywords. These catch merchants the user's
+        // bank labels with descriptive text rather than a brand.
+        let paymentKeywords = [
+            "credit card payment", "card payment", "crcardpmt", "cc payment",
+            "loan payment", "loan pmt",
+            "mortgage",
+            "auto loan", "car loan",
+            "student loan",
+            "autopay"
+        ]
+        if paymentKeywords.contains(where: { m.contains($0) }) { return true }
+
+        // Plaid-style category names. Cheap second-line defense when the
+        // merchant string is generic but the category is explicit.
+        if let cat = category?.lowercased() {
+            let denyCategories = [
+                "credit card payment",
+                "credit card",
+                "loan payment",
+                "loans",
+                "mortgage",
+                "transfer",
+                "payment"      // Plaid's coarse top-level for card payments
+            ]
+            if denyCategories.contains(where: { cat.contains($0) }) { return true }
+        }
+
+        return false
     }
 
     // MARK: - Detection Helpers

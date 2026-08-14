@@ -14,21 +14,20 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Tab content
-            Group {
-                switch selectedTab {
-                case 0: DashboardView()
-                case 1: WealthTabView()
-                case 2: HealthTabView()
-                case 3: MindTabView()
-                case 4: YouTabView()
-                default: DashboardView()
-                }
+            // Tab content — finger-following page swipe. Each tab is
+            // mounted as a page so horizontal swipes drag in real-time
+            // (iOS Photos / Weather style). Auth cache in
+            // `AnonymousIdentity.ensureSession()` prevents the re-auth
+            // cascade that sunk the earlier attempt at this UX.
+            TabView(selection: $selectedTab) {
+                DashboardView().tag(0)
+                WealthTabView().tag(1)
+                HealthTabView().tag(2)
+                MindTabView().tag(3)
+                YouTabView().tag(4)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .transition(.opacity)
-            .id(selectedTab)
-            .animation(.easeInOut(duration: 0.15), value: selectedTab)
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: 70)
             }

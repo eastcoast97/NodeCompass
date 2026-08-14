@@ -6,7 +6,12 @@ actor ChallengeStore {
     static let shared = ChallengeStore()
 
     private let storeKey = "user_challenges"
+    private let deletedCircleChallengesKey = "deleted_circle_challenge_ids"
     private var challenges: [Challenge] = []
+    /// Server-side circle_challenges.id values the user has explicitly deleted
+    /// from their own view. Persisted across launches so `syncCircleChallenges`
+    /// doesn't keep re-mirroring them on every refresh.
+    private var deletedCircleChallengeIds: Set<String> = []
 
     // MARK: - Models
 
@@ -67,9 +72,36 @@ actor ChallengeStore {
         /// right Circle Detail view without an extra lookup.
         let circleId: String?
 
-        static let solo = Scope(circleChallengeId: nil, circleId: nil)
+        /// True when the current user originally shared this challenge to
+        /// the circle. Determines whether `deleteChallenge` propagates to
+        /// the server (creator → delete for everyone) or just tombstones
+        /// locally (non-creator → leave).
+        let createdByMe: Bool
+
+        init(circleChallengeId: String?, circleId: String?, createdByMe: Bool = false) {
+            self.circleChallengeId = circleChallengeId
+            self.circleId = circleId
+            self.createdByMe = createdByMe
+        }
+
+        static let solo = Scope(circleChallengeId: nil, circleId: nil, createdByMe: false)
 
         var isCircle: Bool { circleChallengeId != nil }
+
+        // Backward-compatible decoder: pre-existing scopes saved before
+        // `createdByMe` existed default to false (treats them as joined,
+        // not created — so older challenges only tombstone locally and
+        // never silently delete for the whole circle on this device).
+        enum CodingKeys: String, CodingKey {
+            case circleChallengeId, circleId, createdByMe
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            circleChallengeId = try c.decodeIfPresent(String.self, forKey: .circleChallengeId)
+            circleId = try c.decodeIfPresent(String.self, forKey: .circleId)
+            createdByMe = try c.decodeIfPresent(Bool.self, forKey: .createdByMe) ?? false
+        }
     }
 
     struct Challenge: Codable, Identifiable {
@@ -295,6 +327,9 @@ actor ChallengeStore {
 
     private init() {
         challenges = loadFromDisk()
+        if let raw = UserDefaults.standard.array(forKey: deletedCircleChallengesKey) as? [String] {
+            deletedCircleChallengeIds = Set(raw)
+        }
     }
 
     // MARK: - Queries
@@ -303,6 +338,76 @@ actor ChallengeStore {
     func activeChallenges() -> [Challenge] {
         let now = Date()
         return challenges.filter { !$0.isCompleted && $0.endDate >= now }
+    }
+
+    /// Pull active circle challenges the user is part of into the local store.
+    /// Without this, challenges created by other circle members never reach
+    /// the Dashboard / Active list — they only show up in CircleDetailView,
+    /// which queries Supabase directly. Idempotent: existing mirrors are
+    /// skipped via `scope.circleChallengeId` lookup.
+    func syncCircleChallenges() async {
+        let remote: [CoopChallengeSync.CircleChallenge]
+        do {
+            remote = try await CoopChallengeSync.shared.myActiveCircleChallenges()
+        } catch {
+            return
+        }
+
+        var fallbackAdded = false
+        for circleChallenge in remote {
+            let circleChallengeId = circleChallenge.id.uuidString.lowercased()
+            // User explicitly deleted this challenge from their view —
+            // never re-mirror it locally.
+            if deletedCircleChallengeIds.contains(circleChallengeId) { continue }
+            if challenges.contains(where: { $0.scope.circleChallengeId == circleChallengeId }) {
+                continue
+            }
+            guard let type = ChallengeType(rawValue: circleChallenge.challengeType) else { continue }
+
+            let myAnonId = await AnonymousIdentity.shared.anonUserId
+            let createdByMe = (myAnonId != nil)
+                && circleChallenge.createdBy.lowercased() == myAnonId!.lowercased()
+            let scope = Scope(
+                circleChallengeId: circleChallengeId,
+                circleId: circleChallenge.circleId.uuidString.lowercased(),
+                createdByMe: createdByMe
+            )
+
+            if let catalogId = circleChallenge.catalogId,
+               let entry = ChallengeCatalog.entry(id: catalogId) {
+                _ = startFromCatalog(entry, scope: scope)
+            } else {
+                let pillar = Pillar(rawValue: circleChallenge.pillar) ?? .cross
+                let challenge = Challenge(
+                    id: UUID().uuidString,
+                    title: circleChallenge.title,
+                    type: type,
+                    targetValue: circleChallenge.targetValue,
+                    currentValue: 0,
+                    startDate: circleChallenge.startsAt,
+                    endDate: circleChallenge.endsAt,
+                    isCompleted: false,
+                    completedAt: nil,
+                    pillar: pillar,
+                    difficulty: .easy,
+                    subtitle: circleChallenge.subtitle ?? "",
+                    unlockAchievement: nil,
+                    catalogId: circleChallenge.catalogId,
+                    scope: scope
+                )
+                challenges.append(challenge)
+                fallbackAdded = true
+            }
+
+            // Idempotent server-side join so subsequent score uploads succeed.
+            Task {
+                try? await CoopChallengeSync.shared.joinChallenge(challengeId: circleChallenge.id)
+            }
+        }
+
+        if fallbackAdded {
+            saveToDisk()
+        }
     }
 
     /// Completed challenges, sorted by completion date (newest first).
@@ -585,10 +690,44 @@ actor ChallengeStore {
         await NotificationEngine.shared.scheduleIfAllowed(insight)
     }
 
-    /// Delete a challenge by ID.
+    /// Delete a challenge by ID. For circle-scoped challenges:
+    /// - **Creator**: server-side delete (removes for every circle member)
+    /// - **Non-creator**: tombstone locally (treated as "leave" — only
+    ///   hides on this device)
+    /// Without this distinction, a delete tap on a challenge you joined but
+    /// didn't create would silently nuke it for everyone.
     func deleteChallenge(id: String) {
+        // Capture state BEFORE mutating the array.
+        let target = challenges.first(where: { $0.id == id })
+        let tombstoneId = target?.scope.circleChallengeId
+        let createdByMe = target?.scope.createdByMe ?? false
+
         challenges.removeAll { $0.id == id }
         saveToDisk()
+
+        if let tombstoneId {
+            // Always tombstone locally so the current device stops showing
+            // it — even if the server delete succeeds, the tombstone keeps
+            // sync from re-adding the row in the brief window before the
+            // server's view catches up.
+            deletedCircleChallengeIds.insert(tombstoneId)
+            persistDeletedCircleChallengeIds()
+
+            if createdByMe, let challengeUUID = UUID(uuidString: tombstoneId) {
+                // Fire-and-forget server delete. RPC has SECURITY DEFINER
+                // and validates `created_by = auth.uid()` server-side, so
+                // a non-creator who somehow reached this branch can't
+                // affect the row.
+                Task {
+                    try? await CoopChallengeSync.shared.deleteCircleChallenge(challengeId: challengeUUID)
+                }
+            }
+        }
+    }
+
+    private func persistDeletedCircleChallengeIds() {
+        let snapshot = Array(deletedCircleChallengeIds)
+        UserDefaults.standard.set(snapshot, forKey: deletedCircleChallengesKey)
     }
 
     /// Remove all challenges.

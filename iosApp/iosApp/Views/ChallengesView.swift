@@ -684,6 +684,7 @@ class ChallengesViewModel: ObservableObject {
 
     func load() async {
         let store = ChallengeStore.shared
+        await store.syncCircleChallenges()
         await store.updateProgress()
 
         let activeList = await store.activeChallenges()
@@ -733,7 +734,8 @@ class ChallengesViewModel: ObservableObject {
             )
             let scope = ChallengeStore.Scope(
                 circleChallengeId: remote.id.uuidString.lowercased(),
-                circleId: remote.circleId.uuidString.lowercased()
+                circleId: remote.circleId.uuidString.lowercased(),
+                createdByMe: true
             )
             _ = await ChallengeStore.shared.startFromCatalog(entry, scope: scope)
             await load()

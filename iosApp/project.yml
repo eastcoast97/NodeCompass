@@ -27,7 +27,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.nodecompass.app
         PRODUCT_NAME: NodeCompass
         MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "2"
+        CURRENT_PROJECT_VERSION: "3"
         GENERATE_INFOPLIST_FILE: "YES"
         INFOPLIST_KEY_CFBundleDisplayName: NodeCompass
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
@@ -42,6 +42,10 @@ targets:
         DEVELOPMENT_TEAM: XB6YUT7453
         INFOPLIST_KEY_UIBackgroundModes: "fetch processing location"
         CODE_SIGN_ENTITLEMENTS: iosApp/NodeCompass.entitlements
+        # iPhone only (1). Without this the target defaults to universal,
+        # and App Store validation then demands the full iPad multitasking
+        # orientation set even though the UI is portrait-only by design.
+        TARGETED_DEVICE_FAMILY: "1"
         # KMP shared framework (uncomment when ready to link):
         # FRAMEWORK_SEARCH_PATHS:
         #   - "$(inherited)"
@@ -53,6 +57,12 @@ targets:
       path: iosApp/Info.plist
       properties:
         GIDClientID: "125462112839-nq5tmt5gasjbkc4r7uevlr31oi3rrt03.apps.googleusercontent.com"
+        # Explicit orientation declaration. The build-setting form
+        # (INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone) alone left the
+        # generic key absent from the built plist, which App Store validation
+        # rejects with error 90474.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
         CFBundleURLTypes:
           - CFBundleURLName: com.nodecompass.app
             CFBundleURLSchemes:
@@ -64,6 +74,10 @@ targets:
         NSMicrophoneUsageDescription: "NodeCompass needs microphone access for voice-based food logging."
         NSCameraUsageDescription: "NodeCompass uses the camera to scan product barcodes and auto-fill calories and macros from packaged food."
         NSHealthShareUsageDescription: "NodeCompass reads your health data (steps, workouts, sleep, heart rate) to connect fitness with spending patterns and surface smart insights. All processing is on-device."
+        # Required by App Store validation whenever the HealthKit entitlement
+        # is present — even for read-only apps like this one. NodeCompass never
+        # writes to HealthKit; the string says so plainly.
+        NSHealthUpdateUsageDescription: "NodeCompass does not write to Apple Health. This permission is never used — your health data is only ever read, never modified."
         NSFaceIDUsageDescription: "NodeCompass uses Face ID to protect your financial data."
         NSLocationWhenInUseUsageDescription: "NodeCompass uses your location to connect spending with places you visit — like restaurants, gyms, and stores."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Always-on location lets NodeCompass passively learn your routines and connect spending to places — even when the app is closed."

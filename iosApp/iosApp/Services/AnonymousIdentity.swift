@@ -40,6 +40,14 @@ final class AnonymousIdentity: NSObject, ObservableObject {
     /// into an async/await call site.
     private var pendingContinuation: CheckedContinuation<String, Error>?
 
+    /// Timestamp of the most recent successful refresh. Used to skip
+    /// redundant refreshes within a short window — every dashboard refresh
+    /// and tab switch was hitting Supabase's auth endpoint, multiplying
+    /// the chance of a transient failure cascading into a surprise Apple
+    /// sign-in sheet.
+    private var lastSuccessfulRefresh: Date?
+    private let refreshCacheTTL: TimeInterval = 60
+
     private override init() {
         super.init()
         // Load the anon ID from Keychain if it exists from a previous session.
@@ -114,6 +122,16 @@ final class AnonymousIdentity: NSObject, ObservableObject {
     /// and any future service that writes RLS-checked rows.
     @discardableResult
     func ensureSession() async throws -> String {
+        // Short-circuit if we successfully refreshed recently. Without this,
+        // every read path (dashboard reload, sync poll, etc.) hits the auth
+        // endpoint and a transient failure would cascade into the Apple
+        // sign-in sheet popping up unexpectedly.
+        if let last = lastSuccessfulRefresh,
+           Date().timeIntervalSince(last) < refreshCacheTTL,
+           let cached = anonUserId {
+            return cached
+        }
+
         // Try to refresh first. If the refresh token is still valid (which
         // it normally is — refresh tokens last weeks), this transparently
         // rotates us to a fresh access token. If the refresh token is also
@@ -126,6 +144,7 @@ final class AnonymousIdentity: NSObject, ObservableObject {
                 hasIdentity = true
                 _ = KeychainService.shared.save(key: keychainKey, value: uid)
             }
+            lastSuccessfulRefresh = Date()
             return uid
         } catch {
             // Refresh failed — fall through to full re-auth via Apple.

@@ -68,6 +68,8 @@
 	<string>NodeCompass uses Face ID to protect your financial data.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>NodeCompass reads your health data (steps, workouts, sleep, heart rate) to connect fitness with spending patterns and surface smart insights. All processing is on-device.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>NodeCompass does not write to Apple Health. This permission is never used — your health data is only ever read, never modified.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Always-on location lets NodeCompass passively learn your routines and connect spending to places — even when the app is closed.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -81,6 +83,10 @@
 		<string>fetch</string>
 		<string>processing</string>
 		<string>location</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 </dict>
 </plist>
